@@ -1404,22 +1404,35 @@
 
   /* --- 可以列印的兩頁 --- */
 
+  /* 「怎麼陪我」有內容的每一列（列印、傳圖片、傳文字共用這一份） */
+  function dayRows() {
+    var out = [];
+    byLayer('day').forEach(function (x) {
+      var b = answerBody(answer(x.id), true, x);
+      if (b) { out.push({ t: x.title, b: b }); }
+    });
+    if (S.now.help.length) { out.push({ t: C.out.helpRow, b: esc(helpText()) }); }
+    return out;
+  }
+
   function viewOutDay() {
-    var O = C.out, h = '', any = false, rows = '', items = [];
+    var O = C.out, h = '', items = [], list = dayRows(), any = list.length > 0;
+    var rows = list.map(function (r) { return '<li class="row"><p><b>' + esc(r.t) + '</b></p><p>' + r.b + '</p></li>'; }).join('');
     h += '<h1 tabindex="-1">' + esc(O.dayTitle) + '</h1><p class="sub" data-say>' + esc(O.dayIntro) + '</p>';
     byLayer('day').forEach(function (x) {
       var b = answerBody(answer(x.id), true, x), i = Q.indexOf(x);
-      if (b) { any = true; rows += '<li class="row"><p><b>' + esc(x.title) + '</b></p><p>' + b + '</p></li>'; }
       items.push({ id: 'q' + x.id, icon: x.icon, label: x.title, badge: b ? '' : C.tiles.empty, dim: !b,
         detail: b ? editHead(x.title, qHref(i)) + '<p>' + b + '</p>' : '<h2>' + esc(x.title) + '</h2>' + fillLink(qHref(i), x.title) });
     });
     var help = S.now.help.length ? esc(helpText()) : '';
-    if (help) { any = true; rows += '<li class="row"><p><b>' + esc(O.helpRow) + '</b></p><p>' + help + '</p></li>'; }
     items.push({ id: 'help', icon: C.tiles.helpIcon, label: O.helpRow, badge: help ? '' : C.tiles.empty, dim: !help,
       detail: help ? editHead(O.helpRow, '#/now/2') + '<p>' + help + '</p>' : '<h2>' + esc(O.helpRow) + '</h2>' + fillLink('#/now/2', O.helpRow) });
-    /* 畫面上：一題一格；列印時：有內容的全部列出（格子不印） */
+    /* 畫面上：一題一格；列印時：有內容的全部列出（格子不印）。交給第二個人：先傳圖片，列印放最後 */
     if (any) {
-      h += tileGrid('day', O.dayTitle, items) + '<ul class="rows print-only">' + rows + '</ul>' + button('print', O.print, 'btn primary');
+      h += tileGrid('day', O.dayTitle, items) + '<ul class="rows print-only">' + rows + '</ul>' +
+        '<div class="share-box noprint"><p class="sub">' + esc(O.shareHint) + '</p>' +
+        button('share', O.share, 'btn primary') + button('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
+        '<p id="share-msg" class="share-msg" role="status" aria-live="polite"></p></div>';
     } else {   /* 還沒有內容：說明為什麼是空的，給一顆去回答的按鈕（這時不放列印） */
       h += '<p data-say>' + esc(O.dayEmpty) + '</p>' + (byLayer('day').length ? '<p class="noprint">' + link(qHref(Q.indexOf(byLayer('day')[0])), O.dayEmptyGo, 'btn primary') + '</p>' : '');
     }
@@ -1462,6 +1475,98 @@
       tileGrid('future', O.futureLater, items) +
       '<div class="print-only"><div class="stage-rows">' + pg.body + '</div><h2>' + esc(O.futureLater) + '</h2><ul class="rows">' + rows + '</ul></div>' +
       '<p class="sub note" data-say>' + esc(K.note) + '</p>' + button('print', O.print, 'btn primary');
+  }
+
+  /* --- 交給第二個人：傳圖片／傳文字（2026-11-19）---
+     圖片在這台裝置上用 canvas 畫：1440 px 寬、大字，手機看和印成 A4 都清楚；存成 JPG（各種印表與上傳服務都收）。
+     有系統分享選單（手機、部分桌機）就叫出來；沒有就下載。文字版給要複製、放大或用報讀軟體的人。 */
+  function plainOf(html) {
+    var d = document.createElement('div');
+    d.innerHTML = String(html).replace(/<br\s*\/?>/gi, '\n');
+    return d.textContent.replace(/[ \t]+\n/g, '\n').trim();
+  }
+
+  function dayPlain() {
+    var O = C.out;
+    return [O.dayTitle, O.dayIntro].concat(dayRows().map(function (r) { return '\n' + r.t + '\n' + plainOf(r.b); })).join('\n');
+  }
+
+  function shareMsg(t) { var m = $('share-msg'); if (m) { m.textContent = t; } }
+
+  /* 一行一行斷（中文逐字；標點不放行首） */
+  function wrapText(ctx, text, maxW) {
+    var out = [];
+    String(text).split('\n').forEach(function (par) {
+      var line = '';
+      Array.from(par).forEach(function (ch) {
+        if (line && ctx.measureText(line + ch).width > maxW && '，。、；：）」』！？'.indexOf(ch) < 0) { out.push(line); line = ch; } else { line += ch; }
+      });
+      out.push(line);
+    });
+    return out;
+  }
+
+  function dayCanvas() {
+    var O = C.out, W = 1440, PAD = 96, maxW = W - PAD * 2, fam = getComputedStyle(document.body).fontFamily;
+    var col = { bg: '#fffaf0', ink: '#3b2f2a', sub: '#6b5a50', line: '#e0cfb2', main: '#a8442c' };
+    var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+    var blocks = [{ f: '700 76px', c: col.ink, t: O.dayTitle, gap: 24 }, { f: '400 42px', c: col.sub, t: O.dayIntro, gap: 40, rule: true }];
+    dayRows().forEach(function (r) {
+      blocks.push({ f: '700 48px', c: col.main, t: r.t, gap: 12 });
+      blocks.push({ f: '400 46px', c: col.ink, t: plainOf(r.b), gap: 36, rule: true });
+    });
+    function layout(draw) {
+      var y = PAD;
+      blocks.forEach(function (b) {
+        var size = parseInt(b.f.split(' ')[1], 10), lh = Math.round(size * 1.5);
+        ctx.font = b.f + ' ' + fam;
+        wrapText(ctx, b.t, maxW).forEach(function (ln) {
+          if (draw) { ctx.fillStyle = b.c; ctx.fillText(ln, PAD, y + size); }
+          y += lh;
+        });
+        y += b.gap;
+        if (b.rule) { if (draw) { ctx.fillStyle = col.line; ctx.fillRect(PAD, y - b.gap / 2, maxW, 3); } y += 8; }
+      });
+      return y + PAD - 40;
+    }
+    cv.width = W; cv.height = layout(false);   /* 先量高度，改尺寸會清掉設定，再畫一次 */
+    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, W, cv.height);
+    ctx.textBaseline = 'alphabetic';
+    layout(true);
+    return cv;
+  }
+
+  function shareImage() {
+    var O = C.out, name = O.shareFile + '.jpg';
+    dayCanvas().toBlob(function (blob) {
+      if (!blob) { shareMsg(O.shareFail); return; }
+      var file = null;
+      try { file = new File([blob], name, { type: 'image/jpeg' }); } catch (e) { file = null; }
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: O.shareFile }).catch(function (e) { if (e && e.name !== 'AbortError') { shareMsg(O.shareFail); } });
+        return;
+      }
+      var a = document.createElement('a'), url = URL.createObjectURL(blob);   /* 沒有分享選單：直接存檔 */
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      shareMsg(O.shareSaved);
+    }, 'image/jpeg', 0.92);
+  }
+
+  function shareText() {
+    var O = C.out, t = dayPlain();
+    if (navigator.share) {
+      navigator.share({ title: O.shareFile, text: t }).catch(function (e) { if (e && e.name !== 'AbortError') { copyText(t); } });
+      return;
+    }
+    copyText(t);
+  }
+
+  function copyText(t) {
+    var O = C.out;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { shareMsg(O.shareCopied); }, function () { shareMsg(O.shareFail); });
+    } else { shareMsg(O.shareFail); }
   }
 
   /* 兩頁各自獨立，從首頁的連結進來（不再有上方的切換） */
@@ -2009,6 +2114,8 @@
     res: function (b) { openRes(b.getAttribute('data-id')); },
     tile: function (b) { openTile(b.getAttribute('data-page'), b.getAttribute('data-id')); },
     print: function () { window.print(); },
+    share: shareImage,
+    shareText: shareText,
     addLog: addLog,
     win: function (b) { openWin(+b.getAttribute('data-k'), b); },
     instKind: function (b) {   /* 選一種：只換下面那一塊，焦點留在這顆 */
