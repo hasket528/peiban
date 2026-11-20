@@ -17,9 +17,9 @@
 <div class="wrap">
   <!-- 固定在最上面的導覽列：上一步（或首頁）、設定；題目頁下面多一條進度 -->
   <div class="topbar" id="topbar">
+  <!-- 2026-11-20 參賽者：家、櫃子、電話、月曆＋深色、大字、朗讀，每一頁都在最上面同一行 -->
   <header class="top">
-    <a tabindex="0" class="tool quiet" id="back" href="#/home" hidden><span aria-hidden="true">‹</span><span id="back-label"></span></a>
-    <nav class="tabs" id="tabs" hidden></nav>
+    <nav class="tabs" id="tabs"></nav>
     <!-- 右上角三顆直接按：深色、大字、唸給我聽。中間留間隔，免得按錯（深色預設跟著系統；2026-11-18 參賽者：深色移到大字左邊） -->
     <div class="tools">
       <button type="button" class="tool" id="theme" aria-pressed="false"><span id="theme-label"></span><span class="tool-state" id="theme-state" aria-hidden="true"></span></button>
@@ -27,7 +27,11 @@
       <button type="button" class="tool" id="speak"><span aria-hidden="true">🔊</span><span id="speak-label"></span></button>
     </div>
   </header>
-  <div class="progress" id="progress" hidden></div>
+  <!-- 題目頁才有的第二行：上一步＋進度 -->
+  <div class="subbar" id="subbar" hidden>
+    <a tabindex="0" class="tool quiet" id="back" href="#/home" hidden><span aria-hidden="true">‹</span><span id="back-label"></span></a>
+    <div class="progress" id="progress" hidden></div>
+  </div>
   </div>
   <p class="notice" id="notice" hidden></p>
   <p class="notice" id="content-error" hidden>內容檔有錯：content.js 讀不到或格式壞了（常見原因是少了逗號或引號）。請把它改回上一個可以用的版本。</p>

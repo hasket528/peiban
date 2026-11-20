@@ -204,6 +204,8 @@ html.big .tools .tool, html.big .tools .tool-state { font-size: 13.6px; }
 
 .tag { display: inline-block; font-size: .8rem; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
 .tag.me { background: var(--kid-bg); color: var(--kid); }
+.tag.meet { background: var(--ok-bg); color: var(--ok); }   /* 開會時可以和老師一起填（2026-11-20） */
+.eyebrow .tag + .tag { margin-left: 6px; }
 
 /* ---------- 按鈕 ---------- */
 .btn {
@@ -542,3 +544,36 @@ button.stage[aria-pressed="true"] b { font-weight: 800; text-decoration: underli
 .share-box .btn { width: 100%; }
 .share-msg:empty { display: none; }
 .share-msg { margin: 0; font-weight: 700; color: var(--ink); }
+
+/* ---------- 2026-11-20 參賽者：導覽列每一頁都在，一行排完（家、櫃子、電話、月曆＋深色、大字、朗讀） ----------
+   每顆仍至少 48×48（專案的無障礙標準）：390 寬的手機剛好排一行；更窄（320）或字放很大時排不下，才自動折成兩行，不縮按鈕 */
+.top { flex-wrap: wrap; gap: 4px; }
+.tabs { flex: 1 1 auto; flex-wrap: wrap; gap: 2px; }
+.tabs .tool { flex: 0 0 auto; }
+.tools { flex: 0 0 auto; gap: 12px; }   /* 三顆中間留 12px，免得按錯 */
+html.big .tabs .tool { font-size: 13.6px; }
+.subbar { display: flex; align-items: center; gap: 8px; }
+.subbar .progress { flex: 1 1 auto; min-width: 0; }
+@media (min-width: 601px) { .tabs .tool, .tools .tool { padding-left: 6px; padding-right: 6px; } }   /* 寬螢幕：7 顆排一行（現在那一顆多一個勾也排得下） */
+@media (max-width: 600px) {
+  .topbar { padding-left: 10px; padding-right: 10px; }
+  .tabs { flex: 1 1 198px; flex-wrap: nowrap; }
+  .tabs .tool { flex: 1 1 0; min-width: 48px; flex-direction: column; gap: 0; padding: 3px 2px; line-height: 1.2; position: relative; }
+  .tabs .tool[aria-current="page"]::after { position: absolute; top: 1px; right: 3px; font-size: .75rem; }
+  .tools { margin-left: auto; }
+  .tools .tool { flex-direction: column; gap: 0; padding: 3px 4px; line-height: 1.2; min-width: 48px; }
+  .tools .tool-state { border-left: 0; padding-left: 0; }
+}
+
+/* 誰陪過他的篩選：從、到、誰三格排一列（窄螢幕自動換行） */
+.log-filter { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 12px; margin: 8px 0; }
+@media (max-width: 520px) { .log-filter { grid-template-columns: 1fr 1fr; } .log-filter > div:last-child { grid-column: 1 / -1; } }
+/* 2026-11-20 參賽者：無障礙優先（每顆 48×48）——320 寬排不下一行時，上排家／櫃子／電話／月曆平分，下排深色／大字／朗讀平分、橫著寫，不擠在右邊 */
+@media (max-width: 380px) {
+  .tabs { flex: 1 1 100%; }
+  .tools { flex: 1 1 100%; margin-left: 0; gap: 8px; }
+  .tools .tool { flex: 1 1 0; flex-direction: row; gap: .3em; }
+  .tools .tool-state { border-left: 2px solid var(--edge); padding-left: .3em; }
+}
+.drawer .tag.meet { font-size: .78rem; font-weight: 700; line-height: 1.35; padding: 3px 8px; border-radius: 8px; text-wrap: balance; }   /* 櫃子那一格裡的標籤（2026-11-20） */
+.drawer .drawer-sub { font-size: .8rem; font-weight: 700; color: var(--sub); margin-top: -4px; white-space: nowrap; }   /* 「全部的內容」下面那一行（傳出、列印） */

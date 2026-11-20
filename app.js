@@ -975,10 +975,13 @@
     /* 2026-11-18 參賽者：櫃子照四段放（點了看那一段每一題填了什麼），再加「怎麼陪我」；
        原本的陪伴他的人、還沒有答案的事、全部的步驟拿掉（網址還打得開） */
     /* 2026-11-20 參賽者：「怎麼陪我（可列印）」併進「怎麼陪他」；最後一格把全部的內容一次傳出或列印 */
-    var items = CHAPTERS.map(function (c) { return [(C.tiles.chapterIcons || {})[c] || '', '#/ch/' + c, chapterName(c)]; }).concat([[C.tiles.allIcon || '', '#/out/all', I.allTile]]);
+    var items = CHAPTERS.map(function (c) { return [(C.tiles.chapterIcons || {})[c] || '', '#/ch/' + c, chapterName(c)]; }).concat([[C.tiles.allIcon || '', '#/out/all', I.allTile, I.allTileSub]]);
     var h = '<div class="screen"><h1 tabindex="-1">' + esc(I.title) + '</h1><p class="sub" data-say>' + esc(I.intro) + '</p><ul class="cabinet">';
     items.forEach(function (t) {
-      h += '<li><a tabindex="0" class="drawer" href="' + t[1] + '"><span class="ico" aria-hidden="true">' + t[0] + '</span><span>' + esc(t[2]) + '</span></a></li>';
+      /* 2026-11-20 參賽者：有「開會時可以和老師一起填」題目的那一段，櫃子這一層就看得到標籤，不用點進去 */
+      var meet = Q.some(function (q) { return q.meet && t[1] === '#/ch/' + (q.chapter || q.layer); });
+      h += '<li><a tabindex="0" class="drawer" href="' + t[1] + '"><span class="ico" aria-hidden="true">' + t[0] + '</span><span>' + esc(t[2]) + '</span>' + (t[3] ? '<span class="drawer-sub">' + esc(t[3]) + '</span>' : '') +
+        (meet ? '<span class="tag meet">' + esc(C.ask.meetTag) + '</span>' : '') + '</a></li>';
     });
     return h + '</ul></div>';
   }
@@ -1071,8 +1074,12 @@
 
   /* 圓圈像單選鈕：選了的那一顆實心，其他（含還沒選）都是空心（2026-11-18 參賽者） */
 
+  /* 開會時可以和老師一起填（2026-11-20 參賽者）；畫面上看得到，傳出去、列印時不出現 */
+  function meetTag(x) { return x && x.meet ? '<span class="tag meet noprint">' + esc(C.ask.meetTag) + '</span>' : ''; }
+
   function layerTag(x) {
-    return x.who === 'me' ? '<p class="eyebrow"><span class="tag me">' + esc(C.ask.selfTag) + '</span></p>' : '';
+    var t = (x.who === 'me' ? '<span class="tag me">' + esc(C.ask.selfTag) + '</span>' : '') + meetTag(x);
+    return t ? '<p class="eyebrow">' + t + '</p>' : '';
   }
 
   function whyBox(x) {
@@ -1389,8 +1396,9 @@
         var sum = summaryOf(node), st = isQ(node) ? answer(Q[qIndex(node)].id).st : '';
         ct++; if (sum) { cn++; }
         if (node === 'now') { rows += nowRow(); return; }   /* 他現在的狀況：三小頁各自一個「編輯」，不會都跳到出生年那一頁 */
-        rows += '<li class="row">' + (sum ? '<div class="who-head"><p><b>' + esc(titleOf(node)) + '</b></p><a tabindex="0" class="tool who-edit noprint" href="' + hrefOf(node) + '">' + esc(C.circle.edit) + '<span class="sr">：' + esc(titleOf(node)) + '</span></a></div>' : '<p><b>' + esc(titleOf(node)) + '</b></p>') + (sum ? '<p>' + sum + '</p>'
-          : '<p class="who-why">' + esc(st === 'none' ? C.status.none : K.progressNotYet) + '</p>' +
+        var mt = isQ(node) ? meetTag(Q[qIndex(node)]) : '';   /* 開會時可以和老師一起填 */
+        rows += '<li class="row">' + (sum ? '<div class="who-head"><p><b>' + esc(titleOf(node)) + '</b>' + (mt ? ' ' + mt : '') + '</p><a tabindex="0" class="tool who-edit noprint" href="' + hrefOf(node) + '">' + esc(C.circle.edit) + '<span class="sr">：' + esc(titleOf(node)) + '</span></a></div>' : '<p><b>' + esc(titleOf(node)) + '</b></p>') + (sum ? '<p>' + sum + '</p>'
+          : (mt ? '<p>' + mt + '</p>' : '') + '<p class="who-why">' + esc(st === 'none' ? C.status.none : K.progressNotYet) + '</p>' +
             '<a tabindex="0" class="tool" href="' + hrefOf(node) + '">' + esc(K.progressFill) + '<span class="sr">：' + esc(titleOf(node)) + '</span></a>') + '</li>';
       });
       if (!ct) { return; }
@@ -1466,17 +1474,45 @@
   }
 
   /* 誰陪過他（在「怎麼陪他」那一段的最下面） */
+  /* 誰陪過他：紀錄多了以後，可以選「從幾月到幾月」「誰」收斂；預設只列最近 5 筆，按「看全部」才全部列出（2026-11-20 參賽者）。
+     篩選只是這一次怎麼看，不存進裝置 */
+  var LOG_SHOW = 5, logView = { from: 0, to: 0, who: '', all: false };
+  function logYm(d) { var m = /^(\d+)\/(\d+)/.exec(d || ''); return m ? +m[1] * 100 + +m[2] : 0; }
+  function ymText(v) { return fill(C.out.logYm, { y: Math.floor(v / 100), m: v % 100 }); }
+  function logFilter() {
+    var O = C.out, months = {}, who = {};
+    S.log.forEach(function (g) { if (logYm(g.d)) { months[logYm(g.d)] = 1; } who[g.who] = 1; });
+    var ms = Object.keys(months).map(Number).sort(function (x, y) { return x - y; });
+    var opt = function (v, t, cur) { return '<option value="' + esc(String(v)) + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + esc(t) + '</option>'; };
+    var sel = function (id, label, first, list, cur) { return '<div><label class="field" for="' + id + '">' + esc(label) + '</label><select id="' + id + '">' + opt(0, first, cur) + list.map(function (x) { return opt(x[0], x[1], cur); }).join('') + '</select></div>'; };
+    var ml = ms.map(function (v) { return [v, ymText(v)]; });
+    return '<div class="log-filter noprint">' + sel('log-from', O.logFrom, O.logAnyTime, ml, logView.from) + sel('log-to', O.logTo, O.logAnyTime, ml, logView.to) +
+      sel('log-whof', O.logWhoF, O.logAnyone, Object.keys(who).map(function (x) { return [x, x]; }), logView.who || 0) + '</div>';
+  }
+  function logList() {
+    var O = C.out, v = logView;
+    var hit = S.log.slice().reverse().filter(function (g) { var y = logYm(g.d);
+      return (!v.from || y >= v.from) && (!v.to || y <= v.to) && (!v.who || g.who === v.who); });
+    var filtered = v.from || v.to || v.who, show = v.all ? hit : hit.slice(0, LOG_SHOW), h = '';
+    if (filtered) { h += '<p data-say>' + esc(hit.length ? fill(O.logHit, { n: hit.length }) : O.logNoHit) + '</p>'; }
+    h += '<ul class="rows">';
+    show.forEach(function (g) {
+      h += '<li class="row"><p><b>' + esc(g.who) + '</b> <span class="sub">' + esc(g.d) + '</span></p><p>' + lines(g.did) +
+        (g.found ? '<br>' + esc(O.logFound) + lines(g.found) : '') + '</p></li>';
+    });
+    h += '</ul>';
+    if (hit.length > show.length) { h += button('logMore', fill(O.logMore, { n: hit.length }), 'btn ghost'); }
+    return h;
+  }
+
   function logSection() {
     var O = C.out, h = '', names = {};
     S.log.forEach(function (g) { names[g.who] = 1; });
     var nn = Object.keys(names).length;
     h += '<section class="block"><h2 id="log-title" tabindex="-1">' + esc(O.logTitle) + '</h2><p class="sub">' + esc(O.logIntro) + '</p>' +
-      '<p>' + esc(nn ? fill(O.logCount, { people: nn, n: S.log.length }) : O.logNone) + '</p><ul class="rows">';
-    S.log.slice().reverse().forEach(function (g) {
-      h += '<li class="row"><p><b>' + esc(g.who) + '</b> <span class="sub">' + esc(g.d) + '</span></p><p>' + lines(g.did) +
-        (g.found ? '<br>' + esc(O.logFound) + lines(g.found) : '') + '</p></li>';
-    });
-    h += '</ul><details class="noprint"><summary>' + esc(O.logFormTitle) + '</summary>' +
+      '<p>' + esc(nn ? fill(O.logCount, { people: nn, n: S.log.length }) : O.logNone) + '</p>' +
+      (S.log.length > LOG_SHOW ? logFilter() : '') + '<div id="log-list">' + logList() + '</div>';
+    h += '<details class="noprint"><summary>' + esc(O.logFormTitle) + '</summary>' +
       textField('log-who', O.logWho, '', 'short') + '<p class="err" id="err-who" hidden></p>' +
       textField('log-did', O.logDid, '', 'short') + '<p class="err" id="err-did" hidden></p>' +
       textField('log-new', O.logNew, '', 'short') + button('addLog', O.logAdd, 'btn ghost') + '</details></section>';
@@ -1780,7 +1816,8 @@
       h += '<li class="row"><p><b>' + esc(r.when) + '</b></p><p>' + esc(R.askPrefix) + esc(r.ask) + '</p>' +
         (S.res[r.id] ? '<p>' + esc(R.localLabel) + lines(S.res[r.id]) + '</p>' : '') + '</li>';
     });
-    return h + '</ul><p class="sub">' + esc(R.foot) + '</p></div>' + button('print', R.print, 'btn ghost') + '</div>';   /* 那一句只在紙本最下面；畫面上在畢業之後那幾格裡 */
+    /* 2026-11-20 參賽者：電話、月曆不需要「列印這一頁」按鈕（瀏覽器自己列印時仍用下面的紙本樣式） */
+    return h + '</ul><p class="sub">' + esc(R.foot) + '</p></div></div>';   /* 那一句只在紙本最下面；畫面上在畢業之後那幾格裡 */
   }
 
   function openRes(id) {
@@ -1860,23 +1897,25 @@
     var here = nodeOf(route), ch = flow ? chapterOf(here) : '';
     /* 首頁和櫃子：左上角是一排兩顆的切換（家｜櫃子）；第一次打開還沒有東西可看，不顯示 */
     /* 家、櫃子、電話、月曆四頁都留著這一排（2026-11-18 參賽者：點電話、月曆跟點櫃子一樣，這一排不消失、不出現上一頁） */
-    var top4 = route.name === 'inside' || route.name === 'res' || route.name === 'later';
-    var tabs = $('tabs'), twin = (route.name === 'home' && started()) || top4;
-    tabs.hidden = !twin;
-    if (twin) {
+    /* 2026-11-20 參賽者：這一排每一頁都在（題目頁也是），和深色、大字、朗讀排同一行。櫃子裡的每一段、全部的內容也算「櫃子」 */
+    var inCabinet = route.name === 'inside' || route.name === 'ch' || (route.name === 'out' && route.tab !== 'future');
+    var tabs = $('tabs');
+    tabs.hidden = false;
+    {
       tabs.setAttribute('aria-label', C.inside.navLabel);
-      tabs.innerHTML = [['#/home', '🏠', C.inside.tabHome, route.name === 'home'], ['#/inside', '🗄️', C.inside.tab, route.name === 'inside'],
+      tabs.innerHTML = [['#/home', '🏠', C.inside.tabHome, route.name === 'home'], ['#/inside', '🗄️', C.inside.tab, inCabinet],
         ['#/res', '☎️', C.inside.tabRes, route.name === 'res' && !isLaterRes(route.id), C.resources.title], ['#/later', '📅', C.inside.tabLater, route.name === 'later' || (route.name === 'res' && isLaterRes(route.id)), C.resources.laterTitle]].map(function (t) {
         return '<a tabindex="0" class="tool" href="' + t[0] + '"' + (t[3] ? ' aria-current="page"' : '') + '><span aria-hidden="true">' + t[1] + '</span><span>' + esc(t[2]) + '</span>' +
           (t[4] ? '<span class="sr">：' + esc(t[4]) + '</span>' : '') + '</a>';
       }).join('');
     }
-    back.hidden = route.name === 'home' || top4;
+    back.hidden = !flow;   /* 「上一步」只在題目頁，放在第二行（和進度一起）；其他頁用上面那一排換頁 */
     /* 左上角：題目頁＝上一步；其他頁＝回到剛才那一頁（例如從櫃子點進來就回櫃子）。直接打開、沒有上一頁時才是「首頁」 */
     var hasPrev = navStack.length > 1 && prev !== (window.location.hash || '#/home');
     back.setAttribute('href', flow ? prevQuestion(prev) : hasPrev ? prev : '#/home');
     $('back-label').textContent = flow ? C.app.back : (hasPrev && prev !== '#/home' ? C.app.backPage : C.app.home);
     prog.hidden = !ch;
+    $('subbar').hidden = back.hidden && prog.hidden;
     if (ch) {
       var segs = '';
       CHAPTERS.forEach(function (c) {
@@ -2160,6 +2199,7 @@
     share: function (b) { shareImage(b.getAttribute('data-doc') || 'day'); },
     shareText: function (b) { shareText(b.getAttribute('data-doc') || 'day'); },
     addLog: addLog,
+    logMore: function () { logView.all = true; $('log-list').innerHTML = logList(); var r = app.querySelectorAll('#log-list .row')[LOG_SHOW]; if (r) { r.setAttribute('tabindex', '-1'); r.focus(); } },
     win: function (b) { openWin(+b.getAttribute('data-k'), b); },
     instKind: function (b) {   /* 選一種：只換下面那一塊，焦點留在這顆 */
       var id = b.getAttribute('data-k');
@@ -2225,6 +2265,10 @@
       if ($('win-list')) { $('win-list').innerHTML = winList(item); }
       ['inst-county', 'win-county'].forEach(function (id) { if ($(id) && id !== el.id) { $(id).value = resCounty; } });
       return;
+    }
+    if (el.id === 'log-from' || el.id === 'log-to' || el.id === 'log-whof') {   /* 誰陪過他：只換下面的清單，焦點留在選單 */
+      if (el.id === 'log-whof') { logView.who = el.value === '0' ? '' : el.value; } else { logView[el.id === 'log-from' ? 'from' : 'to'] = +el.value; }
+      logView.all = false; $('log-list').innerHTML = logList(); return;
     }
     if (el.id === 'born') {   /* 出生年：重畫這一頁（下面那一句跟著變），焦點留在選單 */
       S.now.born = el.value; S.now.shift = 0; stampNow(); save(); render(true, '#born'); return;
