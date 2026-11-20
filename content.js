@@ -589,6 +589,7 @@ window.CONTENT = {
     futureDayLine: '畢業之後：{place}。',
     futureDayNone: '畢業之後的安排，還沒有說。',
     futureDaySee: '看白天有哪幾種地方',
+    futureNightSee: '看晚上可以住哪些地方',   /* 2026-11-20 參賽者：晚上也要有（連到「以後他要住哪裡」） */
     futurePlaceSee: '看以後可以住哪些地方、查床位',   /* 「住多久」選了可能要換地方／還沒想過，或以後要換住處：首頁「以後」多這顆連結 */
     futureWhoLine: '以後陪他的：{names}。',         /* 「以後誰陪他」答了誰，就亮誰的窗 */
     futureWhoNone: '以後誰陪他，還沒有說。',

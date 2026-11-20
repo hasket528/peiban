@@ -653,6 +653,11 @@
   function futureHolidayLine() {
     return (HS.futureHolidayFor || []).indexOf(movePlace()) >= 0 ? '<p class="sub center holiday-note" data-say>' + esc(HS.futureHoliday) + '</p>' : '';
   }
+  /* 「以後」的晚上：一律連到「以後他要住哪裡」（和白天的「看白天有哪幾種地方」對稱） */
+  function futureNightSee() {
+    if (!isQ('stayHome')) { return ''; }
+    return '<p class="center">' + link(resHref(Q[qIndex('stayHome')].see), HS.futureNightSee, 'tool') + '</p>';
+  }
   /* 「以後」：可能要換地方、還沒想過、或已經選了別的住處 → 連到「以後他要住哪裡」那一格 */
   function futurePlaceLine() {
     if (!isQ('stayHome')) { return ''; }
@@ -711,6 +716,7 @@
       h += house(fn.P, { tap: true, night: true, other: !!fn.place, noLegend: true });
       if (fn.place) { h += '<p class="center" data-say>' + esc(fill(HS.futureLine, { place: fn.place })) + '</p>' + futureHolidayLine(); }
       h += fn.lit.length ? '<p class="sr" data-say="names">' + esc(fill(HS.futureNightWho, { names: fn.lit.join('、') })) + '</p>' : futureWhoLine([]);
+      h += futureNightSee();   /* 2026-11-20 參賽者：白天有「看白天有哪幾種地方」，晚上也要有對應的「以後可以住哪些地方」 */
     } else if (houseMode === 'day') {
       var d = dayView(P);
       h += house(d.P, { tap: true, noLegend: true });   /* 首頁不放「怎麼看這些窗」（2026-11-18 參賽者） */
@@ -1463,7 +1469,7 @@
     var b = function (act, label, cls) { return '<button type="button" class="' + cls + '" data-act="' + act + '" data-doc="' + key + '">' + esc(label) + '</button>'; };
     return (printCopy ? '<div class="print-only">' + docHtml(d, true) + '</div>' : '') +
       '<div class="share-box noprint"><h2>' + esc(O.shareTitle) + '</h2><p class="sub">' + esc(O.shareHint) + '</p>' +
-      b('share', O.share, 'btn primary') + b('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
+      b('share', O.share, 'btn ghost') + b('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
       '<p id="share-msg" class="share-msg" role="status" aria-live="polite"></p></div>';
   }
 
