@@ -702,9 +702,31 @@
     return '<p class="sub center">' + esc(text) + '</p><p class="center">' + link(hrefOf(node), HS.toQuestion + '：' + titleOf(node), 'tool') + '</p>';
   }
 
+  /* 下一站：現在的階段的下一個（已經畢業的沒有）。升學＝換老師；高中職的下一站＝畢業之後（白天去哪裡） */
+  function nextIndex() {
+    var here = C.now.stages.indexOf(stageNow());
+    return here >= 0 && here + 1 < C.now.stages.length ? here + 1 : -1;
+  }
+  function nextName() { return C.home.next.names[nextIndex()] || ''; }
+  function nextView() {
+    var N = C.home.next, k = nextIndex(), grad = k === C.now.stages.length - 1, li = function (t, more) { return '<li><span data-say>' + esc(t) + '</span>' + (more || '') + '</li>'; };
+    var res = function (id) { var r = C.resources.items.filter(function (x) { return x.id === id; })[0]; return r ? link(resHref(id), r.icon + ' ' + r.when, 'tool') : ''; };
+    /* 標題放在最上面看得到的地方；家下面那個大字 h1 在下一站時只給報讀器（同一句，不重複唸） */
+    var h = '<div class="next-view"><p class="next-title" aria-hidden="true">' + esc(fill(N.title, { name: nextName() })) + '</p>';
+    h += '<h2>' + esc(N.whoHead) + '</h2><p data-say>' + esc(grad ? N.whoGrad : N.who) + '</p>';
+    if (grad) { h += futureDayLine(); }
+    h += '<h2>' + esc(N.doHead) + '</h2><ul class="next-do">' +
+      li(grad ? N.doShareGrad : N.doShare, ' ' + link('#/out/day', N.shareLink, 'tool')) +
+      (grad ? '' : li(fill(N.doMeet, { tag: C.ask.meetTag }), ' ' + link('#/steps', N.meetLink, 'tool'))) +
+      li(grad ? N.doWhenGrad : N.doWhen) + '</ul>';
+    h += '<h2>' + esc(N.askHead) + '</h2><p class="next-ask">' + (grad ? res('r4') + ' ' + res('r5') : res('r3')) + '</p>';
+    return h + '</div>';
+  }
+
   /* 現在選的那個樣子：圖＋一句寫出名字的文字＋圖例（圖對報讀器隱藏，所以每個樣子都有文字） */
   function houseView(P) {
     var h = '';
+    if (houseWhen === 'next') { return nextView(); }
     if (houseWhen === 'future' && houseMode === 'day') {
       var fd = futureDayView();
       h += house(fd.P, { tap: true, noLegend: true });
@@ -753,6 +775,7 @@
   /* 家下面那句大字：跟著現在看的樣子重新算。只算那個時候亮著的窗；那一題還沒答就說「還沒有說」 */
   function modeHeadline(P) {
     var n;
+    if (houseWhen === 'next') { return fill(C.home.next.title, { name: nextName() }); }
     if (houseWhen === 'future' && houseMode === 'day') { n = futureDayView().lit.length; return n ? fill(HS.countFutureDay, { n: n }) : HS.futureDayNone; }
     if (houseWhen === 'future' && houseMode === 'night') { n = futureNightView().lit.length; return n ? fill(HS.countFutureNight, { n: n }) : HS.futureWhoNone; }
     if (houseMode === 'day') { n = dayView(P).lit.length; return n ? fill(HS.countDay, { n: n }) : HS.dayNone; }
@@ -766,7 +789,7 @@
     var modes = modesNow();
     if (!modes.length) { return house(P); }
     if (modes.indexOf(houseMode) < 0) { houseMode = 'all'; }   /* 「以後」從上面的階段條切換（houseWhen） */
-    return modeSwitch(modes) + '<div id="house-view" class="house-view" aria-live="polite">' + houseView(P) + '</div>';
+    return modeSwitch(modes).replace('<div class="modes"', '<div class="modes"' + (houseWhen === 'next' ? ' hidden' : '')) + '<div id="house-view" class="house-view" aria-live="polite">' + houseView(P) + '</div>';
   }
 
   /* m＝全部／白天／晚上；when＝現在／以後（沒給就不變） */
@@ -786,8 +809,12 @@
     });
     /* 階段條上的兩顆：現在的階段／以後 */
     Array.prototype.forEach.call(app.querySelectorAll('[data-when]'), function (b) {
-      b.setAttribute('aria-pressed', (b.getAttribute('data-when') === 'future') === (houseWhen === 'future') ? 'true' : 'false');
+      b.setAttribute('aria-pressed', b.getAttribute('data-when') === houseWhen ? 'true' : 'false');
     });
+    var hm = app.querySelector('.screen.home');
+    if (hm) { hm.classList.toggle('is-next', houseWhen === 'next'); }
+    var md = app.querySelector('.modes');
+    if (md) { md.hidden = houseWhen === 'next'; }   /* 下一站不是一張家的圖，不需要全部／白天／晚上 */
   }
 
   /* 還沒說的題目，變成可以點的小標籤（最多 3 個，其餘收成「還有 N 題」連到全部的步驟） */
@@ -923,13 +950,22 @@
     /* 階段條是時間軸：現在的階段（大圓點，按了看現在的家）……最後一格「以後」（按了看以後的家）。
        其他階段只是標示、不能按（2026-11-18 參賽者：改階段統一在家裡點「他」→「更新」） */
     var h = '<div class="stages" role="group" aria-label="' + esc(H.stageLabel) + '"><span class="stage-strip">';
+    var rest = [];
     stages.forEach(function (t, k) {
       if (here >= 0 && k < here) { return; }   /* 2026-11-18 參賽者：只從現在的階段往後列，走過的不顯示（要改回以前的階段走「更新」） */
       var inner = '<i aria-hidden="true"></i><b>' + esc(short[k] || t) + '</b>';
-      h += k === here
-        ? '<button type="button" class="stage here" data-act="when" data-when="now" aria-pressed="' + (houseWhen !== 'future' ? 'true' : 'false') + '">' + inner + '<span class="sr">' + esc(H.stageHereSr) + '</span></button>'
-        : '<span class="stage">' + inner + '</span>';
+      if (k === here) {
+        h += '<button type="button" class="stage here" data-act="when" data-when="now" aria-pressed="' + (houseWhen === 'now' ? 'true' : 'false') + '">' + inner + '<span class="sr">' + esc(H.stageHereSr) + '</span></button>';
+      } else if (here >= 0 && k === here + 1) {   /* 2026-11-20 參賽者：下一站可以按（換一批人陪他） */
+        h += '<button type="button" class="stage next" data-act="when" data-when="next" aria-pressed="' + (houseWhen === 'next' ? 'true' : 'false') + '">' + inner +
+          '<small>' + esc(H.next.tag) + '</small><span class="sr">' + esc(H.next.sr) + '</span></button>';
+      } else if (here >= 0) {
+        rest.push(short[k] || t);   /* 更後面的：一行淡字，不畫圓點、不像按鈕 */
+      } else {
+        h += '<span class="stage">' + inner + '</span>';
+      }
     });
+    if (rest.length) { h += '<span class="stage rest">' + esc(rest.join('・')) + '</span>'; }
     h += '<button type="button" class="stage later" data-act="when" data-when="future" aria-pressed="' + (houseWhen === 'future' ? 'true' : 'false') + '"><i aria-hidden="true"></i><b>' + esc(HS.modeFuture) + '</b></button></span></div>';
     var info = stageInfo();
     return h + (info.show ? '<p class="stage-line">' + info.html + '</p>' : '');   /* 還沒填、太久沒更新才留在首頁；其他時候點家裡的「他」看 */
@@ -958,7 +994,7 @@
     if (!started()) { return viewWelcome(); }   /* 第一次打開：只有家和「開始填寫」 */
     var H = C.home, K = C.circle, O = C.out, P = people(), next = nextUnfinished();
     var on = P.filter(function (p) { return p.s === 'on'; }).length;
-    var h = '<div class="screen home"><div id="stage-box">' + stageStrip() + '</div>' + houseBlock(P) +
+    var h = '<div class="screen home' + (houseWhen === 'next' ? ' is-next' : '') + '"><div id="stage-box">' + stageStrip() + '</div>' + houseBlock(P) +
       '<h1 class="big-line" tabindex="-1" aria-live="polite">' + esc(modeHeadline(P)) + '</h1>';
     if (next) {
       var ch = chapterName(chapterOf(next.node));
@@ -2196,7 +2232,7 @@
     mode: function (b) { switchMode(b.getAttribute('data-m')); },
     /* 階段條：點別的階段 → 只重畫階段條那一塊，出現「確認／取消」 */
     /* 白天／晚上不變；「以後」是開關，再按一次回到現在（還沒填階段的時候，階段條上沒有「現在」那一顆） */
-    when: function (b) { switchMode('', b.getAttribute('data-when') === 'future' && houseWhen !== 'future' ? 'future' : 'now'); },
+    when: function (b) { var w = b.getAttribute('data-when'); switchMode('', w !== 'now' && houseWhen !== w ? w : 'now'); },
     fwd: forward,
     noteTab: function (b) { noteActive = b.getAttribute('data-k'); redrawNotes(true); },
     res: function (b) { openRes(b.getAttribute('data-id')); },
