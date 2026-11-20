@@ -534,7 +534,7 @@ button.stage[aria-pressed="true"] b { font-weight: 800; text-decoration: underli
   .row { padding: 6pt 0; break-inside: avoid; }
   .block { margin-top: 0; }
   /* 「怎麼陪我」那份清單在紙上排兩欄：2026-11-18 加了「看病和緊急的時候」之後，一欄排不進一頁 A4 */
-  ul.rows.print-only { columns: 2; column-gap: 10mm; }
+  ul.rows.print-only, .print-only ul.rows { columns: 2; column-gap: 10mm; }
 }
 
 /* 交給第二個人（2026-11-19）：傳圖片在最上面，傳文字、列印在下面；按鈕各佔一行，手機好按 */

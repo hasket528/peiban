@@ -974,7 +974,8 @@
     var I = C.inside, K = C.circle, H = C.home, O = C.out;
     /* 2026-11-18 參賽者：櫃子照四段放（點了看那一段每一題填了什麼），再加「怎麼陪我」；
        原本的陪伴他的人、還沒有答案的事、全部的步驟拿掉（網址還打得開） */
-    var items = CHAPTERS.map(function (c) { return [(C.tiles.chapterIcons || {})[c] || '', '#/ch/' + c, chapterName(c)]; }).concat([['📖', '#/out/day', H.toOut]]);
+    /* 2026-11-20 參賽者：「怎麼陪我（可列印）」併進「怎麼陪他」；最後一格把全部的內容一次傳出或列印 */
+    var items = CHAPTERS.map(function (c) { return [(C.tiles.chapterIcons || {})[c] || '', '#/ch/' + c, chapterName(c)]; }).concat([[C.tiles.allIcon || '', '#/out/all', I.allTile]]);
     var h = '<div class="screen"><h1 tabindex="-1">' + esc(I.title) + '</h1><p class="sub" data-say>' + esc(I.intro) + '</p><ul class="cabinet">';
     items.forEach(function (t) {
       h += '<li><a tabindex="0" class="drawer" href="' + t[1] + '"><span class="ico" aria-hidden="true">' + t[0] + '</span><span>' + esc(t[2]) + '</span></a></li>';
@@ -1357,8 +1358,9 @@
   function viewChapter(c) {
     var hit = progressParts().items.filter(function (t) { return t.id === c; })[0];
     if (!hit) { return viewInside(); }
-    return '<div class="screen"><h1 tabindex="-1">' + esc(chapterName(c)) + '</h1><p class="sub" data-say>' + esc(hit.badge) + '</p>' +
-      '<ul class="rows">' + hit.rows + '</ul>' + button('print', C.out.print, 'btn primary') + '</div>';
+    /* 2026-11-20 參賽者：每一段都可以傳圖片、傳文字、列印；「怎麼陪我」併進「怎麼陪他」（傳出去的就是怎麼陪我），誰陪過他放在最下面 */
+    return '<div class="screen"><h1 tabindex="-1" class="noprint">' + esc(chapterName(c)) + '</h1><p class="sub noprint" data-say>' + esc(hit.badge) + '</p>' +
+      '<ul class="rows noprint">' + hit.rows + '</ul>' + shareBox(c, true) + (c === 'day' ? logSection() : '') + '</div>';
   }
 
   /* 「他現在的狀況」在櫃子裡：階段、照顧的人、需要幫忙的事各一行，各自連到那一小頁（2026-11-18 參賽者：編輯不要跳錯頁） */
@@ -1415,29 +1417,57 @@
     return out;
   }
 
-  function viewOutDay() {
-    var O = C.out, h = '', items = [], list = dayRows(), any = list.length > 0;
-    var rows = list.map(function (r) { return '<li class="row"><p><b>' + esc(r.t) + '</b></p><p>' + r.b + '</p></li>'; }).join('');
-    h += '<h1 tabindex="-1">' + esc(O.dayTitle) + '</h1><p class="sub" data-say>' + esc(O.dayIntro) + '</p>';
-    byLayer('day').forEach(function (x) {
-      var b = answerBody(answer(x.id), true, x), i = Q.indexOf(x);
-      items.push({ id: 'q' + x.id, icon: x.icon, label: x.title, badge: b ? '' : C.tiles.empty, dim: !b,
-        detail: b ? editHead(x.title, qHref(i)) + '<p>' + b + '</p>' : '<h2>' + esc(x.title) + '</h2>' + fillLink(qHref(i), x.title) });
+  /* 櫃子裡一段有內容的每一列（傳出去、列印用）。「怎麼陪他」用 dayRows（標家人說／老師說，加上需要幫忙的事） */
+  function chapterRows(c) {
+    if (c === 'day') { return dayRows(); }
+    var out = [];
+    ORDER.forEach(function (node) {
+      if (!known(node) || chapterOf(node) !== c || !(applicable(node) || answered(node))) { return; }
+      var sum = summaryOf(node);
+      if (sum) { out.push({ t: titleOf(node), b: sum }); }
     });
-    var help = S.now.help.length ? esc(helpText()) : '';
-    items.push({ id: 'help', icon: C.tiles.helpIcon, label: O.helpRow, badge: help ? '' : C.tiles.empty, dim: !help,
-      detail: help ? editHead(O.helpRow, '#/now/2') + '<p>' + help + '</p>' : '<h2>' + esc(O.helpRow) + '</h2>' + fillLink('#/now/2', O.helpRow) });
-    /* 畫面上：一題一格；列印時：有內容的全部列出（格子不印）。交給第二個人：先傳圖片，列印放最後 */
-    if (any) {
-      h += tileGrid('day', O.dayTitle, items) + '<ul class="rows print-only">' + rows + '</ul>' +
-        '<div class="share-box noprint"><p class="sub">' + esc(O.shareHint) + '</p>' +
-        button('share', O.share, 'btn primary') + button('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
-        '<p id="share-msg" class="share-msg" role="status" aria-live="polite"></p></div>';
-    } else {   /* 還沒有內容：說明為什麼是空的，給一顆去回答的按鈕（這時不放列印） */
-      h += '<p data-say>' + esc(O.dayEmpty) + '</p>' + (byLayer('day').length ? '<p class="noprint">' + link(qHref(Q.indexOf(byLayer('day')[0])), O.dayEmptyGo, 'btn primary') + '</p>' : '');
-    }
+    return out;
+  }
 
-    var names = {};
+  /* 要傳出去的一份：day＝「怎麼陪我」；其他段＝那一段；all＝四段全部（每段一個小標題） */
+  function docFor(key) {
+    var O = C.out;
+    if (key === 'all') {
+      return { file: O.allTitle, title: O.allTitle, intro: O.allIntro,
+        sections: CHAPTERS.map(function (c) { return { h: c === 'day' ? O.dayTitle : chapterName(c), rows: chapterRows(c) }; }).filter(function (s) { return s.rows.length; }) };
+    }
+    if (key === 'day') { return { file: O.dayTitle, title: O.dayTitle, intro: O.dayIntro, sections: [{ h: '', rows: dayRows() }] }; }
+    return { file: chapterName(key), title: chapterName(key), intro: '', sections: [{ h: '', rows: chapterRows(key) }] };
+  }
+  function docEmpty(d) { return !d.sections.some(function (s) { return s.rows.length; }); }
+
+  function docHtml(d, withTitle) {
+    return (withTitle ? '<h2>' + esc(d.title) + '</h2>' + (d.intro ? '<p class="sub">' + esc(d.intro) + '</p>' : '') : '') +
+      d.sections.map(function (s) {
+        return (s.h ? '<h2>' + esc(s.h) + '</h2>' : '') + '<ul class="rows">' + s.rows.map(function (r) { return '<li class="row"><p><b>' + esc(r.t) + '</b></p><p>' + r.b + '</p></li>'; }).join('') + '</ul>';
+      }).join('');
+  }
+
+  /* 傳圖片、傳文字、列印三顆（每一段和「全部的內容」共用）。printCopy＝畫面上是可編輯的樣子時，另放一份只在列印時出現 */
+  function shareBox(key, printCopy) {
+    var O = C.out, d = docFor(key);
+    if (docEmpty(d)) { return '<p class="sub noprint" data-say>' + esc(O.shareEmpty) + '</p>'; }
+    var b = function (act, label, cls) { return '<button type="button" class="' + cls + '" data-act="' + act + '" data-doc="' + key + '">' + esc(label) + '</button>'; };
+    return (printCopy ? '<div class="print-only">' + docHtml(d, true) + '</div>' : '') +
+      '<div class="share-box noprint"><p class="sub">' + esc(O.shareHint) + '</p>' +
+      b('share', O.share, 'btn primary') + b('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
+      '<p id="share-msg" class="share-msg" role="status" aria-live="polite"></p></div>';
+  }
+
+  function viewOutAll() {
+    var O = C.out, d = docFor('all');
+    return '<div class="screen"><h1 tabindex="-1">' + esc(O.allTitle) + '</h1><p class="sub" data-say>' + esc(O.allIntro) + '</p>' +
+      (docEmpty(d) ? '' : docHtml(d, false)) + shareBox('all', false) + '</div>';
+  }
+
+  /* 誰陪過他（在「怎麼陪他」那一段的最下面） */
+  function logSection() {
+    var O = C.out, h = '', names = {};
     S.log.forEach(function (g) { names[g.who] = 1; });
     var nn = Object.keys(names).length;
     h += '<section class="block"><h2 id="log-title" tabindex="-1">' + esc(O.logTitle) + '</h2><p class="sub">' + esc(O.logIntro) + '</p>' +
@@ -1486,9 +1516,14 @@
     return d.textContent.replace(/[ \t]+\n/g, '\n').trim();
   }
 
-  function dayPlain() {
-    var O = C.out;
-    return [O.dayTitle, O.dayIntro].concat(dayRows().map(function (r) { return '\n' + r.t + '\n' + plainOf(r.b); })).join('\n');
+  /* 一份內容的文字版：標題、說明，每段小標題，每一列「題目／內容」 */
+  function docPlain(d) {
+    var out = [d.title].concat(d.intro ? [d.intro] : []);
+    d.sections.forEach(function (s) {
+      if (s.h) { out.push('\n【' + s.h + '】'); }
+      s.rows.forEach(function (r) { out.push('\n' + r.t + '\n' + plainOf(r.b)); });
+    });
+    return out.join('\n');
   }
 
   function shareMsg(t) { var m = $('share-msg'); if (m) { m.textContent = t; } }
@@ -1506,21 +1541,27 @@
     return out;
   }
 
-  function dayCanvas() {
-    var O = C.out, W = 1440, PAD = 96, maxW = W - PAD * 2, fam = getComputedStyle(document.body).fontFamily;
-    var col = { bg: '#fffaf0', ink: '#3b2f2a', sub: '#6b5a50', line: '#e0cfb2', main: '#a8442c' };
+  function docCanvas(d) {
+    var W = 1440, PAD = 96, maxW = W - PAD * 2, fam = getComputedStyle(document.body).fontFamily;
+    var col = { bg: '#fffaf0', ink: '#3b2f2a', sub: '#6b5a50', line: '#e0cfb2', main: '#a8442c', band: '#f6e3c4' };
     var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
-    var blocks = [{ f: '700 76px', c: col.ink, t: O.dayTitle, gap: 24 }, { f: '400 42px', c: col.sub, t: O.dayIntro, gap: 40, rule: true }];
-    dayRows().forEach(function (r) {
-      blocks.push({ f: '700 48px', c: col.main, t: r.t, gap: 12 });
-      blocks.push({ f: '400 46px', c: col.ink, t: plainOf(r.b), gap: 36, rule: true });
+    var blocks = [{ f: '700 76px', c: col.ink, t: d.title, gap: 24, rule: !d.intro }];
+    if (d.intro) { blocks.push({ f: '400 42px', c: col.sub, t: d.intro, gap: 40, rule: true }); }
+    d.sections.forEach(function (s) {
+      if (s.h) { blocks.push({ f: '700 58px', c: col.ink, t: s.h, gap: 28, band: true }); }   /* 段的小標題：淺色底條 */
+      s.rows.forEach(function (r) {
+        blocks.push({ f: '700 48px', c: col.main, t: r.t, gap: 12 });
+        blocks.push({ f: '400 46px', c: col.ink, t: plainOf(r.b), gap: 36, rule: true });
+      });
     });
     function layout(draw) {
       var y = PAD;
       blocks.forEach(function (b) {
         var size = parseInt(b.f.split(' ')[1], 10), lh = Math.round(size * 1.5);
         ctx.font = b.f + ' ' + fam;
-        wrapText(ctx, b.t, maxW).forEach(function (ln) {
+        var ls = wrapText(ctx, b.t, maxW);
+        if (b.band) { y += 24; if (draw) { ctx.fillStyle = col.band; ctx.fillRect(PAD - 24, y - 12, maxW + 48, ls.length * lh + 24); } }
+        ls.forEach(function (ln) {
           if (draw) { ctx.fillStyle = b.c; ctx.fillText(ln, PAD, y + size); }
           y += lh;
         });
@@ -1536,27 +1577,27 @@
     return cv;
   }
 
-  function shareImage() {
-    var O = C.out, name = O.shareFile + '.jpg';
-    dayCanvas().toBlob(function (blob) {
+  function shareImage(key) {
+    var O = C.out, d = docFor(key), name = d.file + '.jpg';
+    docCanvas(d).toBlob(function (blob) {
       if (!blob) { shareMsg(O.shareFail); return; }
       var file = null;
       try { file = new File([blob], name, { type: 'image/jpeg' }); } catch (e) { file = null; }
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: O.shareFile }).catch(function (e) { if (e && e.name !== 'AbortError') { shareMsg(O.shareFail); } });
+        navigator.share({ files: [file], title: d.title }).catch(function (e) { if (e && e.name !== 'AbortError') { shareMsg(O.shareFail); } });
         return;
       }
       var a = document.createElement('a'), url = URL.createObjectURL(blob);   /* 沒有分享選單：直接存檔 */
       a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-      shareMsg(O.shareSaved);
+      shareMsg(fill(O.shareSaved, { file: d.file }));
     }, 'image/jpeg', 0.92);
   }
 
-  function shareText() {
-    var O = C.out, t = dayPlain();
+  function shareText(key) {
+    var d = docFor(key), t = docPlain(d);
     if (navigator.share) {
-      navigator.share({ title: O.shareFile, text: t }).catch(function (e) { if (e && e.name !== 'AbortError') { copyText(t); } });
+      navigator.share({ title: d.title, text: t }).catch(function (e) { if (e && e.name !== 'AbortError') { copyText(t); } });
       return;
     }
     copyText(t);
@@ -1571,7 +1612,9 @@
 
   /* 兩頁各自獨立，從首頁的連結進來（不再有上方的切換） */
   function viewOut(tab) {
-    return '<div class="screen">' + (tab === 'future' ? viewOutFuture() : viewOutDay()) + '</div>';
+    if (tab === 'all') { return viewOutAll(); }
+    if (tab === 'day') { return viewChapter('day'); }   /* 舊的「怎麼陪我」網址：併進「怎麼陪他」那一段（2026-11-20） */
+    return '<div class="screen">' + viewOutFuture() + '</div>';
   }
 
   /* --- 資源路線圖 --- */
@@ -1762,7 +1805,7 @@
     var n = parseInt(p[1], 10);
     if (p[0] === 'q' && n >= 0 && n < Q.length) { return { name: 'q', i: n, answer: p[2] === 'a' }; }
     if (p[0] === 'now') { return { name: 'now', part: n >= 0 && n < NOW_PARTS.length ? n : 0 }; }
-    if (p[0] === 'out') { return { name: 'out', tab: p[1] === 'future' ? 'future' : 'day' }; }
+    if (p[0] === 'out') { return { name: 'out', tab: p[1] === 'future' ? 'future' : p[1] === 'all' ? 'all' : 'day' }; }
     if (p[0] === 'o' && (p[1] === 'origin' || p[1] === 'others' || p[1] === 'worry') && F[p[1]]) { return { name: 'o', node: p[1] }; }
     if (p[0] === 'res' && p[1]) { return { name: 'res', id: p[1] }; }   /* #/res/r4＝直接打開那一格 */
     if (p[0] === 'ch' && CHAPTERS.indexOf(p[1]) >= 0) { return { name: 'ch', id: p[1] }; }   /* 櫃子裡的一段 */
@@ -2114,8 +2157,8 @@
     res: function (b) { openRes(b.getAttribute('data-id')); },
     tile: function (b) { openTile(b.getAttribute('data-page'), b.getAttribute('data-id')); },
     print: function () { window.print(); },
-    share: shareImage,
-    shareText: shareText,
+    share: function (b) { shareImage(b.getAttribute('data-doc') || 'day'); },
+    shareText: function (b) { shareText(b.getAttribute('data-doc') || 'day'); },
     addLog: addLog,
     win: function (b) { openWin(+b.getAttribute('data-k'), b); },
     instKind: function (b) {   /* 選一種：只換下面那一塊，焦點留在這顆 */
