@@ -1441,10 +1441,10 @@
   function docFor(key) {
     var O = C.out;
     if (key === 'all') {
-      return { file: O.allTitle, title: O.allTitle, intro: O.allIntro,
+      return { file: O.allTitle, title: O.allTitle, intro: O.docIntro,
         sections: CHAPTERS.map(function (c) { return { h: c === 'day' ? O.dayTitle : chapterName(c), rows: chapterRows(c) }; }).filter(function (s) { return s.rows.length; }) };
     }
-    if (key === 'day') { return { file: O.dayTitle, title: O.dayTitle, intro: O.dayIntro, sections: [{ h: '', rows: dayRows() }] }; }
+    if (key === 'day') { return { file: O.dayTitle, title: O.dayTitle, intro: O.docIntro, sections: [{ h: '', rows: dayRows() }] }; }
     return { file: chapterName(key), title: chapterName(key), intro: '', sections: [{ h: '', rows: chapterRows(key) }] };
   }
   function docEmpty(d) { return !d.sections.some(function (s) { return s.rows.length; }); }
@@ -1462,7 +1462,7 @@
     if (docEmpty(d)) { return '<p class="sub noprint" data-say>' + esc(O.shareEmpty) + '</p>'; }
     var b = function (act, label, cls) { return '<button type="button" class="' + cls + '" data-act="' + act + '" data-doc="' + key + '">' + esc(label) + '</button>'; };
     return (printCopy ? '<div class="print-only">' + docHtml(d, true) + '</div>' : '') +
-      '<div class="share-box noprint"><p class="sub">' + esc(O.shareHint) + '</p>' +
+      '<div class="share-box noprint"><h2>' + esc(O.shareTitle) + '</h2><p class="sub">' + esc(O.shareHint) + '</p>' +
       b('share', O.share, 'btn primary') + b('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
       '<p id="share-msg" class="share-msg" role="status" aria-live="polite"></p></div>';
   }
