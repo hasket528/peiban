@@ -626,7 +626,10 @@
   function futureDayView() {
     var P = basePeople(), pick = ansOf('afterGrad').picks[0] || '', name = (HS.futureDayWindows || {})[pick], lit = [], go = hrefOf('afterGrad');
     if (pick && pick === HS.futureDayHome) { lit = uniq(namesIn('futureWho')); go = hrefOf('futureWho'); } else if (name) { lit = [name]; }
-    return { lit: lit, P: lit.map(function (n) { return winOf(P, n, 'on', go); }).slice(0, 9) };
+    var seeking = !lit.length && isQ('afterGrad') && (!pick || pick === Q[qIndex('afterGrad')].unknown) && (pick || meets(Q[qIndex('afterGrad')].askIf));
+    var W = lit.map(function (n) { return winOf(P, n, 'on', go); });
+    if (seeking) { W.push({ n: C.home.path.seek, s: 'off', go: resHref('r4'), label: C.home.path.seekTap, goLabel: C.home.path.nudgeLink }); }   /* 2026-11-20：還在找＝一扇空窗，點了看要走哪些路 */
+    return { lit: lit, seeking: seeking, P: W.slice(0, 9) };
   }
   /* 「以後」的晚上：住宿型機構、社區居住＝那裡的工作人員；搬去其他家人家＝那個家的家人；其他＝「以後誰陪他」答的人 */
   function futureNightView() {
@@ -702,6 +705,22 @@
     return '<p class="sub center">' + esc(text) + '</p><p class="center">' + link(hrefOf(node), HS.toQuestion + '：' + titleOf(node), 'tool') + '</p>';
   }
 
+  /* 「畢業後白天去哪裡，要走一段路」：先講流程、再給名單（2026-11-20 參賽者：不是想去就能去，要委婉；及早規劃） */
+  function pathCard(withFind) {
+    var A = C.home.path;
+    return '<section class="path-card" aria-label="' + esc(A.title) + '"><h2>' + esc(A.title) + '</h2><ol>' +
+      A.steps.map(function (t) { return '<li data-say>' + esc(t) + '</li>'; }).join('') + '</ol>' +
+      '<p data-say>' + esc(A.note) + '</p>' + (withFind ? '<p class="center">' + link(resHref('r4'), A.find, 'tool') + '</p>' : '') + '</section>';
+  }
+  /* 首頁：國中、高中職，「畢業之後去哪裡」還沒答（或答還不知道）→ 一行小卡 */
+  function pathNudge() {
+    var A = C.home.path, st = stageNow();
+    if ((A.nudgeStages || []).indexOf(st) < 0 || !isQ('afterGrad')) { return ''; }
+    var x = Q[qIndex('afterGrad')], pick = answer(x.id).picks[0] || '';
+    if (pick && pick !== x.unknown) { return ''; }
+    return '<p class="path-nudge"><span data-say>' + esc(A.nudge) + '</span> ' + link(resHref('r4'), A.nudgeLink, 'tool') + '</p>';
+  }
+
   /* 下一站：現在的階段的下一個（已經畢業的沒有）。升學＝換老師；高中職的下一站＝畢業之後（白天去哪裡） */
   function nextIndex() {
     var here = C.now.stages.indexOf(stageNow());
@@ -714,11 +733,11 @@
     /* 標題放在最上面看得到的地方；家下面那個大字 h1 在下一站時只給報讀器（同一句，不重複唸） */
     var h = '<div class="next-view"><p class="next-title" aria-hidden="true">' + esc(fill(N.title, { name: nextName() })) + '</p>';
     h += '<h2>' + esc(N.whoHead) + '</h2><p data-say>' + esc(grad ? N.whoGrad : N.who) + '</p>';
-    if (grad) { h += futureDayLine(); }
+    if (grad) { h += futureDayLine() + pathCard(false); }
     h += '<h2>' + esc(N.doHead) + '</h2><ul class="next-do">' +
       li(grad ? N.doShareGrad : N.doShare, ' ' + link('#/out/day', N.shareLink, 'tool')) +
       (grad ? '' : li(fill(N.doMeet, { tag: C.ask.meetTag }), ' ' + link('#/steps', N.meetLink, 'tool'))) +
-      li(grad ? N.doWhenGrad : N.doWhen) + '</ul>';
+      (grad ? '' : li(N.doWhen)) + '</ul>';
     h += '<h2>' + esc(N.askHead) + '</h2><p class="next-ask">' + (grad ? res('r4') + ' ' + res('r5') : res('r3')) + '</p>';
     return h + '</div>';
   }
@@ -732,6 +751,7 @@
       h += house(fd.P, { tap: true, noLegend: true });
       h += fd.lit.length ? '<p class="sr" data-say="names">' + esc(fill(HS.futureDayWho, { names: fd.lit.join('、') })) + '</p>' : '';
       h += futureDayLine() || '<p class="sub center">' + esc(HS.futureDayNone) + '</p>';
+      if (fd.seeking) { h += pathCard(false); }   /* 上面已經有「看白天有哪幾種地方」，卡片不再重複一顆 */
       if (ansOf('afterGrad').picks[0] === HS.futureDayHome && !fd.lit.length) { h += futureWhoLine([]); }
     } else if (houseWhen === 'future' && houseMode === 'night') {
       var fn = futureNightView();
@@ -813,6 +833,8 @@
     });
     var hm = app.querySelector('.screen.home');
     if (hm) { hm.classList.toggle('is-next', houseWhen === 'next'); }
+    var nu = app.querySelector('.path-nudge');
+    if (nu) { nu.hidden = houseWhen !== 'now'; }   /* 首頁小卡只在看「現在」時出現（下一站、以後的畫面裡已經有那張卡） */
     var md = app.querySelector('.modes');
     if (md) { md.hidden = houseWhen === 'next'; }   /* 下一站不是一張家的圖，不需要全部／白天／晚上 */
   }
@@ -995,7 +1017,7 @@
     var H = C.home, K = C.circle, O = C.out, P = people(), next = nextUnfinished();
     var on = P.filter(function (p) { return p.s === 'on'; }).length;
     var h = '<div class="screen home' + (houseWhen === 'next' ? ' is-next' : '') + '"><div id="stage-box">' + stageStrip() + '</div>' + houseBlock(P) +
-      '<h1 class="big-line" tabindex="-1" aria-live="polite">' + esc(modeHeadline(P)) + '</h1>';
+      '<h1 class="big-line" tabindex="-1" aria-live="polite">' + esc(modeHeadline(P)) + '</h1>' + pathNudge();
     if (next) {
       var ch = chapterName(chapterOf(next.node));
       h += '<a tabindex="0" class="btn primary two" href="' + next.href + '"><span>' + esc(H.goOn) + '</span>' +
@@ -1823,7 +1845,7 @@
     if (!r) { return ''; }   /* 還沒點：下面不放字（2026-11-18 參賽者） */
     var val = S.res[r.id] || '';
     return '<h2>' + esc(r.when) + '</h2><p><b>' + esc(R.askPrefix) + '</b>' + esc(r.ask) + '</p>' +
-      (r.note ? '<p class="sub">' + esc(R.noteLabel) + esc(r.note) + '</p>' : '') + winBlock(r) + kindsBlock(r) +
+      (r.note ? '<p class="sub">' + esc(R.noteLabel) + esc(r.note) + '</p>' : '') + (r.id === 'r4' ? pathCard(false) : '') + winBlock(r) + kindsBlock(r) +
       '<details class="local"' + (val ? ' open' : '') + '><summary>' + esc(val ? R.localEdit : R.localToggle) + '</summary>' +
       '<label class="field" for="res-' + r.id + '">' + esc(R.localLabel) + '<span class="sr">' + esc(r.when) + '</span></label>' +
       '<textarea id="res-' + r.id + '" class="short" data-res="' + r.id + '">' + esc(val) + '</textarea></details>' +
@@ -2262,7 +2284,7 @@
     var h = '<h2 id="win-dlg-h">' + esc(title) + '</h2>' + (p.s === 'on' ? '' : '<p class="who-state"><span class="swatch ' + p.s + '" aria-hidden="true"></span>' + esc(p.label || stateName(p.s)) + '</p>');
     if (p.who) { h += '<ul class="win-who">' + p.who.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>'; }
     if (p.why) { h += '<p class="sub">' + esc(p.why) + '</p>'; }
-    openDlg(h, from, p.go ? '<a class="btn ghost" href="' + p.go + '">' + esc(K.edit) + '</a>' : '');
+    openDlg(h, from, p.go ? '<a class="btn ghost" href="' + p.go + '">' + esc(p.goLabel || K.edit) + '</a>' : '');
   }
 
   function openDlg(h, from, btns) {

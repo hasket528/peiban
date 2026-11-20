@@ -590,3 +590,11 @@ button.stage.next small { font-size: .7rem; color: var(--sub); line-height: 1; }
 .next-title { font-size: 1.35rem; font-weight: 800; text-align: center; margin: 4px 0 6px; color: var(--ink); text-wrap: balance; }
 .home.is-next h1.big-line { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
 .next-view { margin-bottom: 16px; }
+
+/* 2026-11-20「畢業後白天去哪裡，要走一段路」 */
+.path-card { text-align: left; max-width: 34rem; margin: 12px auto; padding: 12px 16px; border: 2px solid var(--line); border-radius: 14px; background: var(--card, var(--bg)); }
+.path-card h2 { font-size: 1rem; margin: 0 0 6px; }
+.path-card ol { margin: 0 0 8px; padding-left: 1.4em; }
+.path-card li { margin: 3px 0; }
+.path-card p { margin: 6px 0 0; }
+.path-nudge { text-align: center; margin: 4px 0 10px; font-size: .9rem; }
