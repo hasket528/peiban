@@ -425,6 +425,9 @@
       var a = answer(x.id), st = a.st, who = pickedWho(x, a);
       var p = { n: x.circleName, s: st === 'done' ? 'on' : (st === 'half' ? 'mid' : 'off'), go: editHref(codeOf(x)),
         why: st === 'done' ? K.whyDone : (st === 'half' ? K.whyHalf : K.whyNone) };
+      /* 2026-11-21 參賽者：空窗分兩種——還沒填（進度）／填了但還沒有人（真的缺一個人，連到電話裡可以找誰） */
+      if (!st) { p.lines = [x.circleShort || x.circleName, K.offTodo]; p.label = K.offTodo; p.why = K.whyTodo; p.goLabel = C.circle.progressFill; p.todo = true; }
+      if (st === 'none') { p.lines = [x.circleShort || x.circleName, K.offSeek]; p.label = K.offSeek; p.why = K.whySeek; if (x.findRes) { p.go = resHref(x.findRes); p.goLabel = K.seekRes; } }
       if (who.length) {   /* 勾了哪一種人：窗上寫「臨時接手／哥哥」，完整的（哥哥（兄弟姊妹）、…）放在名字裡給清單和報讀用 */
         p.n = x.circleName + '：' + who.map(function (w) { return w.name ? w.name + '（' + w.pick + '）' : w.pick; }).join('、');
         p.who = who.map(function (w) { return w.name ? w.name + '（' + w.pick + '）' : w.pick; });
@@ -435,7 +438,7 @@
     Q.forEach(function (x) {
       if (x.circleFromOptions) { answer(x.id).picks.forEach(function (k) { if (!seen[k]) { seen[k] = 1; P.push({ n: k, s: 'on', why: K.whyLikes, go: editHref(codeOf(x)) }); } }); }
     });
-    if (!S.log.length) { P.push({ n: K.firstName, s: 'off', go: '#/out/day', why: K.firstWhy }); }
+    if (!S.log.length) { P.push({ n: K.firstName, s: 'off', go: '#/out/day', why: K.firstWhy, lines: K.firstLines, label: K.firstState, goLabel: K.firstGo }); }
     return P.slice(0, 9);
   }
 
@@ -532,6 +535,7 @@
         '<span class="sr">' + esc(C.home.heTitle + '：' + stageInfo().text) + '</span></button>';
     }
     for (var k = 0; k < n; k++) {
+      if (!P[k] && P.length) { continue; }   /* 2026-11-21：補滿格子用、沒有名字的空窗不畫（會被當成還沒填）；第一次打開（一個人都還沒有）才畫空窗 */
       var p = P[k] || { n: '', s: 'off' };
       var x = bx + pad + cells[k][0] * (ww + gap), y = by + pad + cells[k][1] * (wh + gap);
       var name = ringName(p.n), parts = [];
@@ -799,7 +803,8 @@
       }
     } else {
       var on = P.filter(function (p) { return p.s === 'on'; }).length;
-      h += house(P, { tap: true, noLegend: true, cap: on <= 1 ? C.circle.subOne : C.circle.sub }) + midNote(P);   /* 「空著的位置…」在房子下面（2026-11-18 參賽者） */
+      var todo = P.some(function (p) { return p.todo; }), seek = P.some(function (p) { return p.s === 'off' && !p.todo; });
+      h += house(P, { tap: true, noLegend: true, cap: todo ? (on <= 1 ? C.circle.subOne : C.circle.sub) : (seek ? C.circle.subSeek : '') }) + midNote(P);   /* 「空著的位置…」在房子下面（2026-11-18 參賽者） */
     }
     return h;   /* 「點一扇窗，看是誰」2026-11-18 參賽者要拿掉；窗本身是按鈕，報讀器會唸 */
   }
@@ -1557,15 +1562,23 @@
       }).join('');
   }
 
-  /* 傳圖片、傳文字、列印三顆（每一段和「全部的內容」共用）。printCopy＝畫面上是可編輯的樣子時，另放一份只在列印時出現 */
+  /* 傳圖片、傳文字、列印三顆（每一段和「全部的步驟」共用）。printCopy＝畫面上是可編輯的樣子時，另放一份只在列印時出現。
+     2026-11-21 參賽者：櫃子點進每一格都要有這三顆；還沒有內容時也放，按了在下面說「先填一題」（shareGuard） */
   function shareBox(key, printCopy) {
-    var O = C.out, d = docFor(key);
-    if (docEmpty(d)) { return '<p class="sub noprint" data-say>' + esc(O.shareEmpty) + '</p>'; }
+    var O = C.out, d = docFor(key), empty = docEmpty(d);
     var b = function (act, label, cls) { return '<button type="button" class="' + cls + '" data-act="' + act + '" data-doc="' + key + '">' + esc(label) + '</button>'; };
-    return (printCopy ? '<div class="print-only">' + docHtml(d, true) + '</div>' : '') +
-      '<div class="share-box noprint"><h2>' + esc(O.shareTitle) + '</h2><p class="sub">' + esc(O.shareHint) + '</p>' +
-      b('share', O.share, 'btn ghost') + b('shareText', O.shareText, 'btn ghost') + button('print', O.print, 'btn ghost') +
+    return (printCopy && !empty ? '<div class="print-only">' + docHtml(d, true) + '</div>' : '') +
+      '<div class="share-box noprint"><h2>' + esc(O.shareTitle) + '</h2><p class="sub" data-say>' + esc(empty ? O.shareEmpty : O.shareHint) + '</p>' +
+      b('share', O.share, 'btn ghost') + b('shareText', O.shareText, 'btn ghost') + b('print', O.print, 'btn ghost') +
       '<p id="share-msg" class="share-msg" role="status" aria-live="polite"></p></div>';
+  }
+
+  /* 還沒有內容的那一段：按傳出、列印時不動作，在按鈕下面說「先填一題」 */
+  function shareGuard(b) {
+    var key = b && b.getAttribute('data-doc');
+    if (!key || !docEmpty(docFor(key))) { return true; }
+    var m = $('share-msg'); if (m) { m.textContent = C.out.shareEmpty; }
+    return false;
   }
 
   /* 誰陪過他（在「怎麼陪他」那一段的最下面） */
@@ -2330,9 +2343,9 @@
     },
     res: function (b) { openRes(b.getAttribute('data-id')); },
     tile: function (b) { openTile(b.getAttribute('data-page'), b.getAttribute('data-id')); },
-    print: function () { window.print(); },
-    share: function (b) { shareImage(b.getAttribute('data-doc') || 'day'); },
-    shareText: function (b) { shareText(b.getAttribute('data-doc') || 'day'); },
+    print: function (b) { if (shareGuard(b)) { window.print(); } },
+    share: function (b) { if (shareGuard(b)) { shareImage(b.getAttribute('data-doc') || 'day'); } },
+    shareText: function (b) { if (shareGuard(b)) { shareText(b.getAttribute('data-doc') || 'day'); } },
     addLog: addLog,
     logMore: function () { logView.all = true; $('log-list').innerHTML = logList(); var r = app.querySelectorAll('#log-list .row')[LOG_SHOW]; if (r) { r.setAttribute('tabindex', '-1'); r.focus(); } },
     win: function (b) { openWin(+b.getAttribute('data-k'), b); },
