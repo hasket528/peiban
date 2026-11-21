@@ -1894,7 +1894,7 @@
       '<details class="local"' + (val ? ' open' : '') + '><summary>' + esc(val ? R.localEdit : R.localToggle) + '</summary>' +
       '<label class="field" for="res-' + r.id + '">' + esc(R.localLabel) + '<span class="sr">' + esc(r.when) + '</span></label>' +
       '<textarea id="res-' + r.id + '" class="short" data-res="' + r.id + '">' + esc(val) + '</textarea></details>' +
-      ((R.footFor || []).indexOf(r.id) >= 0 ? '<p class="sub res-foot">' + esc(R.foot) + '</p>' : '');
+      ((R.footFor || []).indexOf(r.id) >= 0 ? '<p class="sub res-foot">' + esc(isLaterRes(r.id) ? R.footMap : R.foot) + '</p>' : '');
   }
 
   /* 這一格在哪一頁：地圖（白天去哪裡、晚上住哪裡，laterIds）另一頁，其他在電話「需要幫忙時，可以找誰」 */
