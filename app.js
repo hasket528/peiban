@@ -1896,7 +1896,7 @@
       ((R.footFor || []).indexOf(r.id) >= 0 ? '<p class="sub res-foot">' + esc(R.foot) + '</p>' : '');
   }
 
-  /* 這一格在哪一頁：以後的安排（住、錢、法律、討論以後）另一頁，其他在「需要幫忙時，可以找誰」 */
+  /* 這一格在哪一頁：地圖（白天去哪裡、晚上住哪裡，laterIds）另一頁，其他在電話「需要幫忙時，可以找誰」 */
   function isLaterRes(id) { return (C.resources.laterIds || []).indexOf(id) >= 0; }
   function resHref(id) { return (isLaterRes(id) ? '#/later/' : '#/res/') + id; }
 
@@ -1907,7 +1907,7 @@
     if (resOpen && !mine.some(function (r) { return r.id === resOpen; })) { resOpen = ''; }
     var list = mine.filter(function (r) { return first.indexOf(r.id) >= 0; }).concat(mine.filter(function (r) { return first.indexOf(r.id) < 0; }));
     var title = later ? R.laterTitle : R.title;
-    /* 2026-11-18 參賽者：大標題「家裡的電話／月曆」和「家裡的櫃子」一樣；原本的標題改成和說明同樣的小字 */
+    /* 2026-11-18 參賽者：大標題「家裡的電話／地圖」和「家裡的櫃子」一樣；原本的標題改成和說明同樣的小字 */
     var h = '<div class="screen"><h1 tabindex="-1">' + esc(later ? R.laterTag : R.tag) + '</h1><p class="sub res-what print-only">' + esc(title) + '</p><p class="sub noprint" data-say>' + esc(later ? R.laterIntro : R.intro) + '</p>' +
       '<div class="res-grid noprint" role="group" aria-label="' + esc(title) + '">';
     list.forEach(function (r) {
@@ -1924,7 +1924,7 @@
       h += '<li class="row"><p><b>' + esc(r.when) + '</b></p><p>' + esc(R.askPrefix) + esc(r.ask) + '</p>' +
         (S.res[r.id] ? '<p>' + esc(R.localLabel) + lines(S.res[r.id]) + '</p>' : '') + '</li>';
     });
-    /* 2026-11-20 參賽者：電話、月曆不需要「列印這一頁」按鈕（瀏覽器自己列印時仍用下面的紙本樣式） */
+    /* 2026-11-20 參賽者：電話、地圖不需要「列印這一頁」按鈕（瀏覽器自己列印時仍用下面的紙本樣式） */
     return h + '</ul><p class="sub">' + esc(R.foot) + '</p></div></div>';   /* 那一句只在紙本最下面；畫面上在畢業之後那幾格裡 */
   }
 
@@ -1954,7 +1954,7 @@
     if (p[0] === 'o' && (p[1] === 'origin' || p[1] === 'others' || p[1] === 'worry') && F[p[1]]) { return { name: 'o', node: p[1] }; }
     if (p[0] === 'res' && p[1]) { return { name: 'res', id: p[1] }; }   /* #/res/r4＝直接打開那一格 */
     if (p[0] === 'ch' && CHAPTERS.indexOf(p[1]) >= 0) { return { name: 'ch', id: p[1] }; }   /* 櫃子裡的一段 */
-    if (p[0] === 'later') { return { name: 'later', id: p[1] || '' }; }   /* 以後的安排，可以問誰 */
+    if (p[0] === 'later') { return { name: 'later', id: p[1] || '' }; }   /* 地圖：他可以去的地方（網址沿用 #/later） */
     if (p[0] === 'steps' || p[0] === 'res' || p[0] === 'stop' || p[0] === 'who' || p[0] === 'progress' || p[0] === 'inside') { return { name: p[0] }; }
     return { name: 'home' };
   }
@@ -1980,11 +1980,11 @@
 
   /* 2026-11-21 參賽者：從頁面裡的連結跳到別處（例如首頁「下一站」點「看怎麼陪他」跳到櫃子）容易迷路 →
      跳過去的那一頁，左上角出現「‹ 回到首頁（升高中職）」。記的是「這一頁是從哪裡點進來的」；
-     只在跨區（家｜櫃子｜電話｜月曆換了一格）時出現；用上面那一排換頁＝自己選的地方，不出現。首頁回去時停在原本看的那個樣子（houseWhen 留在記憶體裡） */
+     只在跨區（家｜櫃子｜電話｜地圖換了一格）時出現；用上面那一排換頁＝自己選的地方，不出現。首頁回去時停在原本看的那個樣子（houseWhen 留在記憶體裡） */
   var originOf = {};
-  /* 2026-11-21 參賽者：每一層都能一層一層回去。上面那一排（家｜櫃子｜電話｜月曆）是最上層；
+  /* 2026-11-21 參賽者：每一層都能一層一層回去。上面那一排（家｜櫃子｜電話｜地圖）是最上層；
      下一層的頁面左上角是「‹ 回到上一層」。跨區跳過來的（上面 originOf）優先回到剛才那一頁。
-     題目頁不用這一顆（下面有上一步／回到櫃子）；電話、月曆的每一格是在同一頁打開，不算一層 */
+     題目頁不用這一顆（下面有上一步／回到櫃子）；電話、地圖的每一格是在同一頁打開，不算一層 */
   function parentOf(r) {
     if (r.name === 'ch' || r.name === 'out' || r.name === 'progress') { return { href: '#/inside', name: C.inside.tab }; }
     if (r.name === 'steps' || r.name === 'who' || r.name === 'stop') { return { href: '#/home', name: C.app.home }; }
@@ -2035,7 +2035,7 @@
     var flow = inFlow(route), back = $('back'), prog = $('progress');
     var here = nodeOf(route), ch = flow ? chapterOf(here) : '';
     /* 首頁和櫃子：左上角是一排兩顆的切換（家｜櫃子）；第一次打開還沒有東西可看，不顯示 */
-    /* 家、櫃子、電話、月曆四頁都留著這一排（2026-11-18 參賽者：點電話、月曆跟點櫃子一樣，這一排不消失、不出現上一頁） */
+    /* 家、櫃子、電話、地圖四頁都留著這一排（2026-11-18 參賽者：點電話、地圖跟點櫃子一樣，這一排不消失、不出現上一頁） */
     /* 2026-11-20 參賽者：這一排每一頁都在（題目頁也是），和深色、大字、朗讀排同一行。櫃子裡的每一段、全部的內容也算「櫃子」 */
     var inCabinet = route.name === 'inside' || route.name === 'ch' || (route.name === 'out' && route.tab !== 'future');
     var tabs = $('tabs');
@@ -2043,7 +2043,7 @@
     {
       tabs.setAttribute('aria-label', C.inside.navLabel);
       tabs.innerHTML = [['#/home', '🏠', C.inside.tabHome, route.name === 'home'], ['#/inside', '🗄️', C.inside.tab, inCabinet],
-        ['#/res', '☎️', C.inside.tabRes, route.name === 'res' && !isLaterRes(route.id), C.resources.title], ['#/later', '📅', C.inside.tabLater, route.name === 'later' || (route.name === 'res' && isLaterRes(route.id)), C.resources.laterTitle]].map(function (t) {
+        ['#/res', '☎️', C.inside.tabRes, route.name === 'res' && !isLaterRes(route.id), C.resources.title], ['#/later', '🗺️', C.inside.tabLater, route.name === 'later' || (route.name === 'res' && isLaterRes(route.id)), C.resources.laterTitle]].map(function (t) {
         return '<a tabindex="0" class="tool" href="' + t[0] + '"' + (t[3] ? ' aria-current="page"' : '') + '><span aria-hidden="true">' + t[1] + '</span><span>' + esc(t[2]) + '</span>' +
           (t[4] ? '<span class="sr">：' + esc(t[4]) + '</span>' : '') + '</a>';
       }).join('');
