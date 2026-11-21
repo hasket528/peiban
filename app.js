@@ -1771,7 +1771,7 @@
   }
 
   var resCounty = '';   /* 看機構名稱時選的縣市；只記在這一次開啟裡，不預設（免得看起來像在猜使用者住哪裡） */
-  var resKind = '';     /* 選了縣市之後再選的那一種（小作所、社區日照…） */
+  var resKind = '';     /* 先選的那一種（小作所、社區日照…），再選縣市 */
   var INST = window.INSTITUTIONS || null;   /* 政府公開名冊（data-institutions.js）；讀不到就不顯示名稱那一塊 */
   var WIN = window.WINDOWS || null;          /* 各縣市的窗口（data-windows.js）；讀不到就不顯示 */
 
@@ -1781,20 +1781,13 @@
     return m ? 'tel:' + m[0].replace(/\D/g, '') : '';
   }
 
-  /* 選了縣市之後的名單：照型態分組，只列名稱、鄉鎮、電話（不放人數） */
+  /* 先選了一種、再選縣市之後的名單：只列名稱、鄉鎮、電話（不放人數） */
   function instList(all) {
     var R = C.resources;
     if (!resCounty) { return ''; }
-    var countOf = function (k) { return k.inst ? INST.rows.filter(function (x) { return x[1] === resCounty && x[4] === k.inst; }).length : -1; };
-    var h = '<p class="field kind-label">' + esc(R.instKindPick) + '</p><div class="kind-pick" role="group" aria-label="' + esc(R.instKindPick) + '">';
-    all.forEach(function (k) {
-      var n = countOf(k);
-      h += '<button type="button" class="tool kind-btn" data-act="instKind" data-k="' + k.id + '" aria-pressed="' + (resKind === k.id ? 'true' : 'false') + '">' +
-        '<span>' + esc(k.name) + '</span>' + (n >= 0 ? '<span class="kind-n">' + esc(fill(R.instKindN, { n: n })) + '</span>' : '') + '</button>';
-    });
-    h += '</div>';
+    var h = '';
     var pick = all.filter(function (k) { return k.id === resKind; });
-    if (!pick.length) { return h + '<p class="sub">' + esc(R.instKindHint) + '</p>'; }
+    if (!pick.length) { return ''; }
     var kinds = pick.filter(function (k) { return k.inst; }), others = pick.filter(function (k) { return !k.inst; });
     kinds.forEach(function (k) {
       var rows = INST.rows.filter(function (x) { return x[1] === resCounty && x[4] === k.inst; });
@@ -1833,29 +1826,36 @@
   /* 這一格的型態（帶上代號） */
   function resKinds(r) {
     var K = C.resources.kinds || {};
-    return ((r && r.kinds) || []).filter(function (k) { return K[k]; }).map(function (k) { return { id: k, name: K[k].name, what: K[k].what, inst: K[k].inst, note: K[k].note }; });
+    return ((r && r.kinds) || []).filter(function (k) { return K[k]; }).map(function (k) { return { id: k, name: K[k].name, what: K[k].what, inst: K[k].inst, note: K[k].note, icon: K[k].icon }; });
   }
   function hasInst(r) { return !!INST && resKinds(r).some(function (k) { return k.inst; }); }
 
-  /* 這件事有哪幾種型態（白話），和「看各縣市的機構名稱和電話」 */
+  /* 這件事有哪幾種地方：2026-11-21 參賽者：先選一種（圖示＋名稱＋一句話），再選縣市，才列名單 */
   function kindsBlock(r) {
     var R = C.resources, kinds = resKinds(r);
     if (!kinds.length) { return ''; }
-    var h = '<p class="kinds-title"><b>' + esc(R.kindsTitle) + '</b></p><ul class="kinds">';
-    kinds.forEach(function (k) { h += '<li><b>' + esc(k.name) + '</b><span>' + esc(k.what) + '</span></li>'; });
-    h += '</ul>';
+    if (resKind && !kinds.some(function (k) { return k.id === resKind; })) { resKind = ''; }   /* 從白天換到晚上：上一格選的那一種不帶過來 */
+    var listed = kinds.filter(function (k) { return k.inst; }), missing = kinds.filter(function (k) { return !k.inst; });
+    var h = '<p class="kinds-title"><b>' + esc(R.kindsTitle) + '</b></p><div class="kind-cards" role="group" aria-label="' + esc(R.kindsTitle) + '">';
+    kinds.forEach(function (k) {
+      h += '<button type="button" class="kind-card" data-act="instKind" data-k="' + k.id + '" aria-pressed="' + (resKind === k.id ? 'true' : 'false') + '">' +
+        '<span class="ico" aria-hidden="true">' + esc(k.icon || '') + '</span><b>' + esc(k.name) + '</b><span class="sub">' + esc(k.what) + '</span></button>';
+    });
+    h += '</div>';
+    if (INST && listed.length) { h += '<div id="inst-list" aria-live="polite">' + instPanel(kinds) + '</div>'; }
+    if (missing.length) { h += '<p class="sub">' + esc(fill(R.instMissing, { names: missing.map(function (k) { return k.name; }).join('、') })) + '</p>'; }
     if (r.bed && R.bedUrl) {   /* 住的地方：官方床位查詢（另開分頁，當下的資料） */
       h += '<p class="bed-link"><a href="' + esc(R.bedUrl) + '" target="_blank" rel="noopener">' + esc(R.bedLink) + '<span class="sr">' + esc(R.newWin) + '</span></a></p><p class="sub">' + esc(R.bedNote) + '</p>';
     }
-    var listed = kinds.filter(function (k) { return k.inst; }), missing = kinds.filter(function (k) { return !k.inst; });
-    if (!INST || !listed.length) { return h; }
-    h += '<details class="local inst"' + (resCounty ? ' open' : '') + '><summary>' + esc(R.instToggle) + '</summary>' +
-      '<label class="field" for="inst-county">' + esc(R.instCounty) + '</label><select id="inst-county"><option value="">' + esc(R.instPick) + '</option>';
-    INST.counties.forEach(function (ct) { h += '<option' + (ct === resCounty ? ' selected' : '') + '>' + esc(ct) + '</option>'; });
-    h += '</select><div id="inst-list" aria-live="polite">' + instList(kinds) + '</div>' +
-      '<p class="sub">' + esc(fill(R.instNote, { date: INST.fetched })) + '</p>' +
-      (missing.length ? '<p class="sub">' + esc(fill(R.instMissing, { names: missing.map(function (k) { return k.name; }).join('、') })) + '</p>' : '') + '</details>';
     return h;
+  }
+  /* 選了一種之後：選縣市＋名單 */
+  function instPanel(kinds) {
+    var R = C.resources, k = kinds.filter(function (x) { return x.id === resKind; })[0];
+    if (!k) { return '<p class="sub">' + esc(R.instKindHint) + '</p>'; }
+    var h = '<label class="field" for="inst-county">' + esc(fill(R.instCountyFor, { kind: k.name })) + '</label><select id="inst-county"><option value="">' + esc(R.instPick) + '</option>';
+    INST.counties.forEach(function (ct) { h += '<option' + (ct === resCounty ? ' selected' : '') + '>' + esc(ct) + '</option>'; });
+    return h + '</select><div id="inst-rows">' + instList(kinds) + '</div><p class="sub">' + esc(fill(R.instNote, { date: INST.fetched })) + '</p>';
   }
 
   /* 這一格在選的縣市可以問誰（官方網頁上的單位和電話） */
@@ -1889,7 +1889,8 @@
     if (!r) { return ''; }   /* 還沒點：下面不放字（2026-11-18 參賽者） */
     var val = S.res[r.id] || '';
     return '<h2>' + esc(r.when) + '</h2><p><b>' + esc(R.askPrefix) + '</b>' + esc(r.ask) + '</p>' +
-      (r.note ? '<p class="sub">' + esc(R.noteLabel) + esc(r.note) + '</p>' : '') + (r.id === 'r4' ? pathCard(false) : '') + winBlock(r) + kindsBlock(r) +
+      (r.note ? '<p class="sub">' + esc(R.noteLabel) + esc(r.note) + '</p>' : '') + (isLaterRes(r.id) ? kindsBlock(r) + (r.id === 'r4' ? pathCard(false) : '') + winBlock(r)   /* 地圖：先選一種地方、再選縣市，放最上面（2026-11-21） */
+        : (r.id === 'r4' ? pathCard(false) : '') + winBlock(r) + kindsBlock(r)) +
       '<details class="local"' + (val ? ' open' : '') + '><summary>' + esc(val ? R.localEdit : R.localToggle) + '</summary>' +
       '<label class="field" for="res-' + r.id + '">' + esc(R.localLabel) + '<span class="sr">' + esc(r.when) + '</span></label>' +
       '<textarea id="res-' + r.id + '" class="short" data-res="' + r.id + '">' + esc(val) + '</textarea></details>' +
@@ -2353,8 +2354,9 @@
       var id = b.getAttribute('data-k');
       resKind = resKind === id ? '' : id;
       var item = C.resources.items.filter(function (x) { return x.id === resOpen; })[0];
-      $('inst-list').innerHTML = instList(resKinds(item));
-      var again = app.querySelector('[data-act=instKind][data-k="' + id + '"]'); if (again) { again.focus(); }
+      $('inst-list').innerHTML = instPanel(resKinds(item));
+      Array.prototype.forEach.call(app.querySelectorAll('[data-act=instKind]'), function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-k') === resKind ? 'true' : 'false'); });
+      b.focus();
     },
     he: function (b) { openDlg('<h2 id="win-dlg-h">' + esc(C.home.heTitle) + '</h2><p class="stage-line dlg-stage">' + stageInfo('btn ghost').html + '</p>', b); },
     clear: clearAll
@@ -2409,7 +2411,7 @@
       resCounty = el.value;
       var item = C.resources.items.filter(function (x) { return x.id === resOpen; })[0];
       var ks = resKinds(item);
-      if ($('inst-list')) { $('inst-list').innerHTML = instList(ks); }
+      if ($('inst-rows')) { $('inst-rows').innerHTML = instList(ks); }
       if ($('win-list')) { $('win-list').innerHTML = winList(item); }
       ['inst-county', 'win-county'].forEach(function (id) { if ($(id) && id !== el.id) { $(id).value = resCounty; } });
       return;
