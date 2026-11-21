@@ -1131,7 +1131,7 @@
     if (key === 'stage') {   /* 年紀（直接打數字，存成出生年）；下面收著「直接選階段」 */
       var cur = stageNow();
       h = h.slice(0, h.lastIndexOf('<fieldset>'));
-      h += '<label class="field" for="born">' + esc(N.bornLabel) + '</label><div class="age-in"><input id="born" type="text" inputmode="numeric" autocomplete="off" maxlength="3" value="' + (bornYear() ? ageNow() : '') + '"><span aria-hidden="true">' + esc(N.ageUnit) + '</span></div>' +
+      h += '<label class="field" for="born">' + esc(N.bornLabel) + '</label><div class="age-in"><input id="born" type="text" inputmode="numeric" enterkeyhint="next" autocomplete="off" maxlength="3" value="' + (bornYear() ? ageNow() : '') + '"><span aria-hidden="true">' + esc(N.ageUnit) + '</span></div>' +
         '<p id="born-result" class="big-line" data-say aria-live="polite">' + bornLine() + '</p>' +
         '<details class="stage-fix"' + (S.now.born === 'no' ? ' open' : '') + '><summary>' + esc(N.stageFix) + '</summary>' +
         '<fieldset><legend class="sr">' + esc(N.stagePickQ) + '</legend><div class="picks list">';
@@ -2447,6 +2447,8 @@
      Chrome 靠 CSS 的 scroll-padding 就會避開；Safari 用 Tab 移動焦點時不理它，所以這裡再補一次 */
   var byKeyboard = false;   /* 只在用鍵盤移動焦點時補捲；用手點的時候捲動會讓那一下點歪 */
   document.addEventListener('keydown', function (e) { if (e.key === 'Tab') { byKeyboard = true; } });
+  /* 年紀格子：按手機鍵盤的「下一步／前往」或 Enter，就到下一頁（2026-11-21 參賽者手機實測：打完不知道怎麼往下） */
+  app.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'born' && route.name === 'now') { e.preventDefault(); e.target.blur(); forward(); } });
   document.addEventListener('pointerdown', function () { byKeyboard = false; });
 
   app.addEventListener('focusin', function (e) {
@@ -2468,7 +2470,7 @@
       var n = v === '' ? -1 : parseInt(v, 10);
       S.now.born = n >= 0 && n <= (C.now.ageMax || 120) ? String(new Date().getFullYear() - 1911 - n) : '';
       S.now.shift = 0; stampNow(); save();
-      $('born-result').innerHTML = bornLine();
+      $('born-result').innerHTML = bornLine(); updateFwd();   /* 中間那顆跟著變成「下一步」 */
       var st = stageNow();
       [].forEach.call(document.querySelectorAll('input[name=stage]'), function (r) { r.checked = r.value === st; });
       return;
