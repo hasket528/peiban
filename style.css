@@ -606,3 +606,7 @@ button.stage.next small { font-size: .7rem; color: var(--sub); line-height: 1; }
 .path-card li { margin: 3px 0; }
 .path-card p { margin: 6px 0 0; }
 .path-nudge { text-align: center; margin: 4px 0 10px; font-size: .9rem; }
+/* 2026-11-21 年紀直接打數字：格子不用拉滿一整行，旁邊寫「歲」 */
+.age-in { display: flex; align-items: center; gap: 10px; }
+.age-in input { width: 7rem; max-width: 100%; box-sizing: border-box; min-height: 52px; font-size: 1.3rem; padding: 8px 12px; text-align: center; }
+.age-in span { font-size: 1.2rem; font-weight: 700; }

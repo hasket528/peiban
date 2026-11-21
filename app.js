@@ -171,6 +171,7 @@
      學年從 8 月開始；1–8 月出生的 6 歲上小學。9–12 月出生、緩讀、延長修業的，用 shift（差幾個年級）修正 */
   var STAGE_GRADES = [[-99, 0], [1, 6], [7, 9], [10, 12], [13, 999]];   /* 每個階段是第幾年級到第幾年級（和 C.now.stages 同順序） */
   function bornYear() { var b = parseInt(S.now.born, 10); return b > 0 ? b + 1911 : 0; }
+  function bornLine() { var cur = stageNow(); return bornYear() && cur ? esc(fill(C.now.bornResult, { age: ageNow(), stage: cur })) : ''; }
   function ageNow() { var b = bornYear(); return b ? new Date().getFullYear() - b : 0; }
   function gradeRaw() {
     var b = bornYear(), t = new Date();
@@ -1127,15 +1128,11 @@
     var h = '<div class="screen">' + eyebrow(N.title) + '<h1 tabindex="-1">' + esc(question) + '</h1>' +
       '<p class="sub" data-say>' + esc(hint) + '</p>' +
       '<fieldset><legend class="sr">' + esc(question) + '</legend>';
-    if (key === 'stage') {   /* 出生年（選單）；下面收著「直接選階段」 */
-      var roc = new Date().getFullYear() - 1911, cur = stageNow();
+    if (key === 'stage') {   /* 年紀（直接打數字，存成出生年）；下面收著「直接選階段」 */
+      var cur = stageNow();
       h = h.slice(0, h.lastIndexOf('<fieldset>'));
-      h += '<label class="field" for="born">' + esc(N.bornLabel) + '</label><select id="born" class="big-select"><option value="">' + esc(N.bornPick) + '</option>';
-      for (var y = roc; y >= roc - (N.bornRange || 80); y--) {
-        h += '<option value="' + y + '"' + (S.now.born === String(y) ? ' selected' : '') + '>' + esc(fill(N.bornYear, { y: y, age: roc - y })) + '</option>';
-      }
-      h += '<option value="no"' + (S.now.born === 'no' ? ' selected' : '') + '>' + esc(N.bornNo) + '</option></select>' +
-        (bornYear() && cur ? '<p class="big-line" data-say>' + esc(fill(N.bornResult, { age: ageNow(), stage: cur })) + '</p>' : '') +
+      h += '<label class="field" for="born">' + esc(N.bornLabel) + '</label><div class="age-in"><input id="born" type="text" inputmode="numeric" autocomplete="off" maxlength="3" value="' + (bornYear() ? ageNow() : '') + '"><span aria-hidden="true">' + esc(N.ageUnit) + '</span></div>' +
+        '<p id="born-result" class="big-line" data-say aria-live="polite">' + bornLine() + '</p>' +
         '<details class="stage-fix"' + (S.now.born === 'no' ? ' open' : '') + '><summary>' + esc(N.stageFix) + '</summary>' +
         '<fieldset><legend class="sr">' + esc(N.stagePickQ) + '</legend><div class="picks list">';
       N.stages.forEach(function (t) { h += pick({ type: 'radio', name: 'stage', cls: 'row-pick', value: t, label: t, on: cur === t }); });
@@ -2420,9 +2417,6 @@
       if (el.id === 'log-whof') { logView.who = el.value === '0' ? '' : el.value; } else { logView[el.id === 'log-from' ? 'from' : 'to'] = +el.value; }
       logView.all = false; $('log-list').innerHTML = logList(); return;
     }
-    if (el.id === 'born') {   /* 出生年：重畫這一頁（下面那一句跟著變），焦點留在選單 */
-      S.now.born = el.value; S.now.shift = 0; stampNow(); save(); render(true, '#born'); return;
-    }
     if (el.type !== 'checkbox' && el.type !== 'radio') { return; }
     if (route.name === 'now') {
       if (el.name === 'stage') { setStage(el.value); } else { toggleIn(S.now[el.name], el.value, el.checked); }
@@ -2469,6 +2463,16 @@
 
   app.addEventListener('input', function (e) {
     var el = e.target;
+    if (el.id === 'born') {   /* 年紀：打數字（全形也行）→ 存成出生年（民國），下面那一句跟著變；不重畫，游標留在格子裡 */
+      var v = el.value.replace(/[\uFF10-\uFF19]/g, function (d) { return String.fromCharCode(d.charCodeAt(0) - 0xFEE0); }).replace(/\D/g, '');
+      var n = v === '' ? -1 : parseInt(v, 10);
+      S.now.born = n >= 0 && n <= (C.now.ageMax || 120) ? String(new Date().getFullYear() - 1911 - n) : '';
+      S.now.shift = 0; stampNow(); save();
+      $('born-result').innerHTML = bornLine();
+      var st = stageNow();
+      [].forEach.call(document.querySelectorAll('input[name=stage]'), function (r) { r.checked = r.value === st; });
+      return;
+    }
     if (el.tagName !== 'TEXTAREA') { return; }
     if (route.name === 'q' && TEXT_FIELDS[el.id]) { answer(Q[route.i].id)[TEXT_FIELDS[el.id]] = el.value; save(); }
     if (route.name === 'q' && el.getAttribute('data-pick')) { answer(Q[route.i].id).names[el.getAttribute('data-pick')] = el.value; save(); }
