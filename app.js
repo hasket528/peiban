@@ -19,7 +19,7 @@
      #/q/3     第 4 題：只問狀態      #/q/3/a  第 4 題：回答
      #/o/origin 他現在有人陪嗎   #/o/others 還有誰在陪他   #/o/worry 最常想到哪一件
      #/stop    按「先到這裡」之後     （#/circle 已併進首頁，會自動轉過去）
-     #/out/day 怎麼陪我   #/out/future 還沒有答案的事   #/res 可以找誰
+     #/out/day 怎麼陪他   #/out/future 還沒有答案的事   #/res 可以找誰
 
    存在裝置上的資料（鍵名 udl-app）：
      { big: 0或1,
@@ -153,6 +153,9 @@
     var nt = {};
     if (a.notes && typeof a.notes === 'object') { Object.keys(a.notes).forEach(function (k) { if (typeof a.notes[k] === 'string') { nt[k] = a.notes[k]; } }); }
     a.notes = nt;
+    var nt2 = {};   /* 第二組選項（more）自己的補充（2026-11-21 參賽者：選第二組也要有專屬的填寫框） */
+    if (a.notes2 && typeof a.notes2 === 'object') { Object.keys(a.notes2).forEach(function (k) { if (typeof a.notes2[k] === 'string') { nt2[k] = a.notes2[k]; } }); }
+    a.notes2 = nt2;
     a.sub = typeof a.sub === 'string' ? a.sub : '';   /* 選擇題的第二層（例如白天在學校 → 哪一種班） */
     return a;
   }
@@ -894,7 +897,8 @@
         side(at < 0 ? -1 : at + 1, 'nextq', A.nextQ, '<span aria-hidden="true">›</span>', false) + '</div>';
     }
     return '<div class="flownav">' +
-      '<a tabindex="0" class="navbtn" data-nav="home" href="#/home" aria-label="' + esc(A.toHome) + '"><span aria-hidden="true">🏠</span><span>' + esc(A.home) + '</span></a>' +
+      /* 2026-11-21 參賽者：左邊那顆「首頁」換成「上一步」（和左上角那顆去同一個地方；第一題回首頁） */
+      '<a tabindex="0" class="navbtn" data-nav="back" href="' + esc(prevQuestion('#/home')) + '"><span aria-hidden="true">‹</span><span>' + esc(A.back) + '</span></a>' +
       '<button type="button" class="navbtn fwd' + (has ? ' go' : '') + '" data-act="fwd"' + (has ? '' : ' aria-label="' + esc(F.skipFull) + '"') + '>' + fwdInner(has) + '</button>' +
       (returnTo ? '<a tabindex="0" class="navbtn" data-nav="stop" href="' + esc(returnTo) + '">' + esc(A.backCabinet) + '</a></div>'
         : '<a tabindex="0" class="navbtn" data-nav="stop" href="#/stop">' + esc(A.stop) + '</a></div>');
@@ -1231,7 +1235,7 @@
       x.more.options.forEach(function (t) {
         h += pick({ type: 'checkbox', name: 'picks2', cls: 'tile', value: t[1], label: t[1], icon: t[0], on: a.picks2.indexOf(t[1]) >= 0 });
       });
-      h += '</div></fieldset>';
+      h += '</div></fieldset>' + (noteOn(x) ? '<div class="notes" id="notes2">' + noteInner2(x, a) + '</div>' : '');
     }
     /* 文字是備用的：收著，想寫再打開 */
     h += '<details' + (a.text ? ' open' : '') + '><summary>' + esc(A.writeMore) + '</summary>' +
@@ -1242,7 +1246,7 @@
   /* 每個選項自己的補充：同一時間只有一個框，固定在圖卡下面（2026-11-18 參賽者：框一個一個往下疊，越後點的離越遠）。
      框寫的是「最後點的那一個」；勾了兩個以上，框上面一排小按鈕可以換補充哪一個。
      點已勾的圖卡＝取消（和原本一樣），所以換框不用點圖卡、用那排小按鈕。取消勾選時寫過的字留著，再勾回來還在。 */
-  var noteActive = '';
+  var noteActive = '', noteActive2 = '';   /* 2＝第二組選項（more）那一個框 */
   /* 2026-11-18 參賽者：每一題有選項的都可以補充（題目寫 notes: false 才不出現）；「一種人」（nameFor）的框寫稱呼 */
   function noteOn(x) { return x.notes !== undefined ? !!x.notes : true; }
   function optTexts(x) { return (x.kind === 'people' ? C.now.care.concat(x.extra || []) : x.options).map(function (t) { return t[1]; }); }
@@ -1254,27 +1258,31 @@
     return '<div class="notes" id="notes">' + noteInner(x, a) + '</div>';
   }
   function noteInner(x, a) { return noteBox(notePicks(x, a), a.picks, a.notes, a.names, x.nameFor); }
+  function noteInner2(x, a) { return noteBox(x.more.options.map(function (t) { return t[1]; }), a.picks2, a.notes2, null, null, '2'); }
   /* opts＝可以補充的選項（照選項順序）；picks＝勾的順序（找最後勾的）；notes＝寫過的補充；
      names、nameFor＝「一種人」的選項寫的是稱呼（存在 names），框的說明也換成「…的稱呼」 */
-  function noteBox(opts, picks, notes, names, nameFor) {
+  function noteBox(opts, picks, notes, names, nameFor, slot) {
+    slot = slot || '';   /* ''＝第一組；'2'＝第二組（more），框的 id、存的地方都分開 */
     var list = opts.filter(function (k) { return picks.indexOf(k) >= 0; });
     var isName = function (k) { return (nameFor || []).indexOf(k) >= 0; };
     var val = function (k) { return String((isName(k) ? (names || {})[k] : notes[k]) || ''); };
-    if (list.indexOf(noteActive) < 0) { noteActive = picks.filter(function (k) { return list.indexOf(k) >= 0; }).pop() || ''; }   /* 沒指定＝最後勾的那一個 */
-    if (!noteActive) { return ''; }
+    var act = slot ? noteActive2 : noteActive;
+    if (list.indexOf(act) < 0) { act = picks.filter(function (k) { return list.indexOf(k) >= 0; }).pop() || ''; }   /* 沒指定＝最後勾的那一個 */
+    if (slot) { noteActive2 = act; } else { noteActive = act; }
+    if (!act) { return ''; }
     var h = '';
     if (list.length > 1) {
       h += '<div class="note-tabs" role="group" aria-label="' + esc(C.ask.noteSwitch) + '"><span class="sub">' + esc(C.ask.noteSwitch) + '</span>';
       list.forEach(function (k) {
-        var on = k === noteActive, has = val(k).trim();
-        h += '<button type="button" class="tool note-tab" data-act="noteTab" data-k="' + esc(k) + '" aria-pressed="' + on + '">' + esc(k) +
+        var on = k === act, has = val(k).trim();
+        h += '<button type="button" class="tool note-tab" data-act="noteTab" data-slot="' + slot + '" data-k="' + esc(k) + '" aria-pressed="' + on + '">' + esc(k) +
           (has ? '<span aria-hidden="true"> ✎</span><span class="sr">' + esc(C.ask.noteHas) + '</span>' : '') + '</button>';
       });
       h += '</div>';
     }
-    var nm = isName(noteActive);
-    return h + '<label class="field" for="nt">' + esc(fill(nm ? C.ask.nameLabel : C.ask.noteLabel, { pick: noteActive })) + '</label>' +
-      '<textarea id="nt" class="short" data-' + (nm ? 'pick' : 'note') + '="' + esc(noteActive) + '">' + esc(val(noteActive)) + '</textarea>';
+    var nm = isName(act);
+    return h + '<label class="field" for="nt' + slot + '">' + esc(fill(nm ? C.ask.nameLabel : C.ask.noteLabel, { pick: act })) + '</label>' +
+      '<textarea id="nt' + slot + '" class="short" data-' + (nm ? 'pick' : 'note' + slot) + '="' + esc(act) + '">' + esc(val(act)) + '</textarea>';
   }
   function redrawNotes(focusBox) {
     var box = $('notes');
@@ -1282,6 +1290,12 @@
     if (route.name === 'now') { box.innerHTML = nowNotes(NOW_PARTS[route.part]); }
     else { var x = Q[route.i]; box.innerHTML = noteInner(x, answer(x.id)); }
     if (focusBox && $('nt')) { $('nt').focus(); }
+  }
+  function redrawNotes2(focusBox) {
+    var box = $('notes2');
+    if (!box || route.name !== 'q') { return; }
+    var x = Q[route.i]; box.innerHTML = noteInner2(x, answer(x.id));
+    if (focusBox && $('nt2')) { $('nt2').focus(); }
   }
 
   /* --- 按「先到這裡」之後 --- */
@@ -1351,7 +1365,7 @@
         return t && x && noteOn(x) ? k + '（' + t + '）' : k;   /* 勾了又寫了補充：用說的（會說「要」） */
       }).join('、'));
     }
-    if (a.picks2.length && x && x.more) { s += (s ? '<br>' : '') + '<span class="sub">' + esc(x.more.label) + '</span>' + esc(a.picks2.join('、')); }
+    if (a.picks2.length && x && x.more) { s += (s ? '<br>' : '') + '<span class="sub">' + esc(x.more.label) + '</span>' + esc(noteOn(x) ? withNotes(a.picks2, a.notes2) : a.picks2.join('、')); }
     if (a.text) { s += (s ? '<br>' : '') + (fam && a.tch ? '<span class="sub">' + esc(C.out.familySays) + '</span>' : '') + lines(a.text); }
     if (fam && a.tch) { s += (s ? '<br>' : '') + '<span class="sub">' + esc(C.out.teacherSays) + '</span>' + lines(a.tch); }
     return s;
@@ -1934,6 +1948,38 @@
   /* 走過的畫面（記在記憶體裡）。題目不再排成一條線，所以「上一步」是回到剛才那個畫面 */
   var navStack = [window.location.hash || '#/home'];
 
+  /* 2026-11-21 參賽者：從頁面裡的連結跳到別處（例如首頁「下一站」點「看怎麼陪他」跳到櫃子）容易迷路 →
+     跳過去的那一頁，左上角出現「‹ 回到首頁（升高中職）」。記的是「這一頁是從哪裡點進來的」；
+     只在跨區（家｜櫃子｜電話｜月曆換了一格）時出現；用上面那一排換頁＝自己選的地方，不出現。首頁回去時停在原本看的那個樣子（houseWhen 留在記憶體裡） */
+  var originOf = {};
+  /* 2026-11-21 參賽者：每一層都能一層一層回去。上面那一排（家｜櫃子｜電話｜月曆）是最上層；
+     下一層的頁面左上角是「‹ 回到上一層」。跨區跳過來的（上面 originOf）優先回到剛才那一頁。
+     題目頁不用這一顆（下面有上一步／回到櫃子）；電話、月曆的每一格是在同一頁打開，不算一層 */
+  function parentOf(r) {
+    if (r.name === 'ch' || r.name === 'out' || r.name === 'progress') { return { href: '#/inside', name: C.inside.tab }; }
+    if (r.name === 'steps' || r.name === 'who' || r.name === 'stop') { return { href: '#/home', name: C.app.home }; }
+    return null;
+  }
+  function hereName() {
+    if (route.name === 'home') {
+      return C.app.home + (houseWhen === 'next' ? '（' + nextName() + '）' : houseWhen === 'future' ? '（' + HS.modeFuture + '）' : '');
+    }
+    var t = (($('app').querySelector('h1') || {}).textContent || '').trim();
+    return t.length > 14 ? t.slice(0, 13) + '…' : t;
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[href^="#/"]') : null;
+    if (!a) { return; }
+    var to = a.getAttribute('href'), here = window.location.hash || '#/home';
+    if (to === here) { return; }
+    if (a.closest('#tabs') || a.id === 'back') { delete originOf[to]; return; }   /* 自己選的地方／已經在往回走 */
+    if (a.closest('#app') && !a.closest('.flownav')) {
+      var name = hereName();
+      var cur = $('tabs').querySelector('[aria-current=page]');
+      if (name) { originOf[to] = { href: here, name: name, tab: cur ? cur.getAttribute('href') : '' }; }
+    }
+  }, true);
+
   function trackNav() {
     var h = window.location.hash || '#/home', n = navStack.length;
     if (n > 1 && navStack[n - 2] === h) { navStack.pop(); }
@@ -1957,7 +2003,6 @@
   /* 頁首固定在最上面：上一步（或首頁）、設定。題目頁下面多一條進度：一段一格，再一行「段名・第幾題」 */
   function updateHeader() {
     var flow = inFlow(route), back = $('back'), prog = $('progress');
-    var prev = navStack.length > 1 ? navStack[navStack.length - 2] : '#/home';
     var here = nodeOf(route), ch = flow ? chapterOf(here) : '';
     /* 首頁和櫃子：左上角是一排兩顆的切換（家｜櫃子）；第一次打開還沒有東西可看，不顯示 */
     /* 家、櫃子、電話、月曆四頁都留著這一排（2026-11-18 參賽者：點電話、月曆跟點櫃子一樣，這一排不消失、不出現上一頁） */
@@ -1973,11 +2018,13 @@
           (t[4] ? '<span class="sr">：' + esc(t[4]) + '</span>' : '') + '</a>';
       }).join('');
     }
-    back.hidden = !flow;   /* 「上一步」只在題目頁，放在第二行（和進度一起）；其他頁用上面那一排換頁 */
-    /* 左上角：題目頁＝上一步；其他頁＝回到剛才那一頁（例如從櫃子點進來就回櫃子）。直接打開、沒有上一頁時才是「首頁」 */
-    var hasPrev = navStack.length > 1 && prev !== (window.location.hash || '#/home');
-    back.setAttribute('href', flow ? prevQuestion(prev) : hasPrev ? prev : '#/home');
-    $('back-label').textContent = flow ? C.app.back : (hasPrev && prev !== '#/home' ? C.app.backPage : C.app.home);
+    /* 2026-11-21 參賽者：題目頁左上角的「上一步」拿掉（題目下面已經有一顆）。
+       這個位置只給「從別頁的連結跳過來」的頁：回到剛才那一頁，寫出那一頁的名字 */
+    var origin = flow ? null : originOf[window.location.hash || '#/home'], nowTab = tabs.querySelector('[aria-current=page]');
+    if (origin && nowTab && nowTab.getAttribute('href') === origin.tab) { origin = null; }   /* 同一區裡往下點：回到上一層就好 */
+    if (!origin && !flow) { origin = parentOf(route); }
+    back.hidden = !origin;
+    if (origin) { back.setAttribute('href', origin.href); $('back-label').textContent = fill(C.app.backTo, { name: origin.name }); }
     prog.hidden = !ch;
     $('subbar').hidden = back.hidden && prog.hidden;
     if (ch) {
@@ -2008,7 +2055,7 @@
     var prevHash = lastHash; lastHash = window.location.hash || '#/home';
     if (!inFlow(route)) { returnTo = ''; }
     else if (/^#\/(ch\/|inside|out\/)/.test(prevHash)) { returnTo = prevHash; }   /* 從櫃子點進題目 */
-    if (route.name + (route.i === undefined ? route.part : route.i) !== was) { noteActive = ''; }   /* 換了題目：框回到最後勾的那一個 */
+    if (route.name + (route.i === undefined ? route.part : route.i) !== was) { noteActive = ''; noteActive2 = ''; }   /* 換了題目：框回到最後勾的那一個 */
     try { app.innerHTML = viewOf(route); } catch (e) { contentBroken(e); return; }
     updateHeader();
     var h1 = app.querySelector('h1');
@@ -2256,7 +2303,10 @@
     /* 白天／晚上不變；「以後」是開關，再按一次回到現在（還沒填階段的時候，階段條上沒有「現在」那一顆） */
     when: function (b) { var w = b.getAttribute('data-when'); switchMode('', w !== 'now' && houseWhen !== w ? w : 'now'); },
     fwd: forward,
-    noteTab: function (b) { noteActive = b.getAttribute('data-k'); redrawNotes(true); },
+    noteTab: function (b) {
+      if (b.getAttribute('data-slot') === '2') { noteActive2 = b.getAttribute('data-k'); redrawNotes2(true); return; }
+      noteActive = b.getAttribute('data-k'); redrawNotes(true);
+    },
     res: function (b) { openRes(b.getAttribute('data-id')); },
     tile: function (b) { openTile(b.getAttribute('data-page'), b.getAttribute('data-id')); },
     print: function () { window.print(); },
@@ -2351,7 +2401,11 @@
         redrawNotes(false);
       }
       if (el.name === 'sub') { a.sub = el.value; }
-      if (el.name === 'picks2') { toggleIn(a.picks2, el.value, el.checked); }
+      if (el.name === 'picks2') {
+        toggleIn(a.picks2, el.value, el.checked);
+        if (el.checked) { noteActive2 = el.value; } else if (noteActive2 === el.value) { noteActive2 = ''; }
+        redrawNotes2(false);
+      }
       if (el.name === 'share') { a.share = el.checked; }
     }
     save();
@@ -2386,6 +2440,7 @@
     if (el.id === 'now-stage') { S.now.stageText = el.value; save(); }
     if (el.id === 'now-care') { S.now.careText = el.value; save(); }
     if (route.name === 'q' && el.getAttribute('data-note')) { answer(Q[route.i].id).notes[el.getAttribute('data-note')] = el.value; save(); }
+    if (route.name === 'q' && el.getAttribute('data-note2')) { answer(Q[route.i].id).notes2[el.getAttribute('data-note2')] = el.value; save(); }
     if (route.name === 'q' && el.id === 'f-text' && !Q[route.i].options && !Q[route.i].kind) {   /* 只有一格字的題目：寫了就算想好了 */
       var a1 = answer(Q[route.i].id); a1.st = a1.text.trim() ? 'done' : ''; save();
     }
