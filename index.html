@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta name="app-ver" content="f8c40b3128">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="darkreader-lock">
+<script>(function(){try{var t=localStorage.getItem("udl-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<title>陪伴他的人，不只一個</title>
+<link rel="stylesheet" href="style.css?v=544677d3">
+</head>
+<body>
+<a tabindex="0" class="skip-link" id="skip" href="#app"></a>
+<div class="wrap">
+  <div class="topbar" id="topbar">
+  <header class="top">
+    <nav class="tabs" id="tabs"></nav>
+    <div class="tools">
+      <button type="button" class="tool" id="theme" aria-pressed="false"><span id="theme-label"></span><span class="tool-state" id="theme-state" aria-hidden="true"></span></button>
+      <button type="button" class="tool" id="big" aria-pressed="false"><span id="big-label"></span><span class="tool-state" id="big-state" aria-hidden="true"></span></button>
+      <button type="button" class="tool" id="speak"><span aria-hidden="true">🔊</span><span id="speak-label"></span></button>
+    </div>
+  </header>
+  <div class="subbar" id="subbar" hidden>
+    <a tabindex="0" class="tool quiet" id="back" href="#/home" hidden><span aria-hidden="true">‹</span><span id="back-label"></span></a>
+    <div class="progress" id="progress" hidden></div>
+  </div>
+  </div>
+  <p class="notice" id="notice" hidden></p>
+  <p class="notice" id="content-error" hidden>內容檔有錯：content.js 讀不到或格式壞了（常見原因是少了逗號或引號）。請把它改回上一個可以用的版本。</p>
+  <p class="status" id="status" role="status"></p>
+  <main id="app" tabindex="-1"></main>
+</div>
+<noscript><p class="notice">這一頁需要開啟 JavaScript 才能使用。</p></noscript>
+<script src="content.js?v=ddb21d84"></script>
+<script src="qr.js?v=4f03231d"></script>
+<script src="data-institutions.js?v=fde4f61f"></script>
+<script src="data-windows.js?v=1f992fd6"></script>
+<script src="app.js?v=52fcf14f"></script>
+</body>
+</html>
